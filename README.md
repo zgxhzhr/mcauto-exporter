@@ -1,0 +1,69 @@
+# mcauto exporter
+
+Minecraft **1.21.1 / Fabric** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+
+MIT License。
+
+## 功能
+
+- 物品 / 方块（BlockItem）图标：32×32、128×128，GUI 内真实渲染
+- 实体图标：128×128 离屏渲染，失败/空白会标记
+- BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
+- 物品 `<ns>.json`、实体 `<ns>_entity.json` 与 LMS 字段一致
+- 效果 `<ns>_effect.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 进度、日志、错误都在界面内显示
+
+## 使用
+
+1. 把 jar 放进 `mods/`，需要 Fabric API。
+2. 进入一个世界。
+3. 输入 `/mcauto` 或按界面打开导出器。
+4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
+5. 点「开始导出」。
+
+### 四种模式
+
+| 模式 | 行为 |
+|---|---|
+| 完整导出（JSON + 图标） | 渲染图标、写 `_data` PNG，并写出 JSON |
+| 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
+| 只导出图标 | 只写 `_data` PNG，不写 JSON |
+| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
+
+### 输出
+
+默认在 `.minecraft/mcauto-export/`，可在 `config/mcauto-exporter.json` 改 `outputDir`。
+
+```text
+mcauto-export/
+├─ <namespace>.json              物品，JSONL，LMS 字段
+├─ <namespace>_entity.json       实体，JSONL，LMS 字段
+├─ <namespace>_effect.json       效果，JSONL，扩展字段
+├─ _data/<namespace>/<path>_32.png
+├─ _data/<namespace>/<path>_128.png
+└─ status.json
+```
+
+## 构建
+
+需要 JDK 21。
+
+```bash
+./gradlew build
+```
+
+产物在 `build/libs/`。
+
+## 已知限制
+
+- 只支持 1.21.1 Fabric。
+- 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
+- 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
+- 配方、附魔暂不导出。
+
+## 许可
+
+- 本仓库代码：MIT。
+- 图标导出的「一帧一个 + GUI 阶段离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
+- LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
+- Fabric API 为运行时依赖，不打包。
