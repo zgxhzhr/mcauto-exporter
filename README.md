@@ -1,32 +1,86 @@
-# MultiLoader Template
+# mcauto exporter
 
-This project provides a Gradle project template that can compile Minecraft mods for multiple modloaders using a common project for the sources. This project does not require any third party libraries or dependencies. If you have any questions or want to discuss the project, please join our [Discord](https://discord.myceliummod.network).
+Minecraft **1.21.1 / Fabric** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
-## Getting Started
+MIT License。
 
-### IntelliJ IDEA
-This guide will show how to import the MultiLoader Template into IntelliJ IDEA. The setup process is roughly equivalent to setting up the modloaders independently and should be very familiar to anyone who has worked with their MDKs.
+## 功能
 
-1. Clone or download this repository to your computer.
-2. Configure the project by setting the properties in the `gradle.properties` file. You will also need to change the `rootProject.name`  property in `settings.gradle`, this should match the folder name of your project, or else IDEA may complain.
-3. Open the template's root folder as a new project in IDEA. This is the folder that contains this README.md file and the gradlew executable.
-4. If your default JVM/JDK is not Java 21 you will encounter an error when opening the project. This error is fixed by going to `File > Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM` and changing the value to a valid Java 21 JVM. You will also need to set the Project SDK to Java 21. This can be done by going to `File > Project Structure > Project SDK`. Once both have been set open the Gradle tab in IDEA and click the refresh button to reload the project.
-5. Open your Run/Debug Configurations. Under the `Application` category there should now be options to run Fabric and NeoForge projects. Select one of the client options and try to run it.
-6. Assuming you were able to run the game in step 5 your workspace should now be set up.
+- 物品 / 方块（BlockItem）图标：32×32、128×128，GUI 内真实渲染
+- 实体图标：128×128 离屏渲染，失败/空白会标记
+- BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
+- 物品 `<ns>.json`、实体 `<ns>_entity.json` 与 LMS 字段一致
+- 效果 `<ns>_effect.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 进度、日志、错误都在界面内显示
 
-### Eclipse
-While it is possible to use this template in Eclipse it is not recommended. During the development of this template multiple critical bugs and quirks related to Eclipse were found at nearly every level of the required build tools. While we continue to work with these tools to report and resolve issues support for projects like these are not there yet. For now Eclipse is considered unsupported by this project. The development cycle for build tools is notoriously slow so there are no ETAs available.
+## 使用
 
-## Development Guide
-When using this template the majority of your mod should be developed in the `common` project. The `common` project is compiled against the vanilla game and is used to hold code that is shared between the different loader-specific versions of your mod. The `common` project has no knowledge or access to ModLoader specific code, apis, or concepts. Code that requires something from a specific loader must be done through the project that is specific to that loader, such as the `fabric` or `neoforge` projects.
+1. 把 jar 放进 `mods/`，需要 Fabric API。
+2. 进入一个世界。
+3. 输入 `/mcauto` 或按界面打开导出器。
+4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
+5. 点「开始导出」。
 
-Loader specific projects such as the `fabric` and `neoforge` project are used to load the `common` project into the game. These projects also define code that is specific to that loader. Loader specific projects can access all the code in the `common` project. It is important to remember that the `common` project can not access code from loader specific projects.
+### 四种模式
 
-## Removing Platforms and Loaders
-While this template has support for many modloaders, new loaders may appear in the future, and existing loaders may become less relevant.
+| 模式 | 行为 |
+|---|---|
+| 完整导出（JSON + 图标） | 渲染图标、写 `_data` PNG，并写出 JSON |
+| 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
+| 只导出图标 | 只写 `_data` PNG，不写 JSON |
+| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
 
-Removing loader specific projects is as easy as deleting the folder, and removing the `include("projectname")` line from the `settings.gradle` file.
-For example if you wanted to remove support for `forge` you would follow the following steps:
+### 输出
 
-1. Delete the subproject folder. For example, delete `MultiLoader-Template/forge`.
-2. Remove the project from `settings.gradle`. For example, remove `include("forge")`. 
+默认在 `.minecraft/mcauto-export/`，可在 `config/mcauto-exporter.json` 改 `outputDir`。
+
+```text
+mcauto-export/
+├─ <namespace>.json              物品，JSONL，LMS 字段
+├─ <namespace>_entity.json       实体，JSONL，LMS 字段
+├─ <namespace>_effect.json       效果，JSONL，扩展字段
+├─ _data/<namespace>/<path>_32.png
+├─ _data/<namespace>/<path>_128.png
+└─ status.json
+```
+
+## 构建
+
+需要 JDK 21。仓库采用 MultiLoader 结构，目前只实现 Fabric 客户端。
+
+```bash
+./gradlew :fabric:build
+```
+
+产物在 `fabric/build/libs/`。
+
+开发客户端：
+
+```bash
+./gradlew :fabric:runClient
+```
+
+## 项目结构
+
+```text
+common/   与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/   Fabric 入口、命令、平台服务实现
+docs/     LMS 字段说明与架构设计
+```
+
+Forge / NeoForge 尚未移植，需要时从模板恢复对应模块。
+
+
+## 已知限制
+
+- 只支持 1.21.1 Fabric。
+- 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
+- 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
+- 配方、附魔暂不导出。
+
+## 许可
+
+- 本仓库代码：MIT。
+- 图标导出的「一帧一个 + GUI 阶段离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
+- LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
+- Fabric API 为运行时依赖，不打包。
