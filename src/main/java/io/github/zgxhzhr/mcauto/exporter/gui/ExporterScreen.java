@@ -56,6 +56,9 @@ public final class ExporterScreen extends Screen {
         }
         modIds.sort(String::compareTo);
         for (String id : modIds) {
+            if (id.equals("minecraft") || id.equals("java") || id.startsWith("fabric")) {
+                continue;
+            }
             if (contentNamespaces.contains(id)) {
                 String name = FabricLoader.getInstance().getModContainer(id)
                         .map(m -> m.getMetadata().getName()).orElse(id);
