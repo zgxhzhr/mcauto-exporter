@@ -320,10 +320,21 @@ public final class ExporterScreen extends Screen {
                     contentLeft, statusY + 20, McAutoStyle.SUBTEXT_COLOR, false);
             return;
         }
-        String line = !message.isEmpty() ? message
-                : !service.error().isEmpty() ? service.error() : "就绪";
-        int color = !message.isEmpty() ? McAutoStyle.ACCENT
-                : !service.error().isEmpty() ? McAutoStyle.DANGER : McAutoStyle.SUBTEXT_COLOR;
+        String line;
+        int color;
+        if (!message.isEmpty()) {
+            line = message;
+            color = McAutoStyle.ACCENT;
+        } else if (!service.error().isEmpty()) {
+            line = service.error();
+            color = McAutoStyle.DANGER;
+        } else if (!service.lastResult().isEmpty()) {
+            line = service.lastResult();
+            color = McAutoStyle.ACCENT;
+        } else {
+            line = "就绪";
+            color = McAutoStyle.SUBTEXT_COLOR;
+        }
         graphics.drawString(font, McAutoStyle.clamp(font, line, contentRight - contentLeft),
                 contentLeft, statusY, color, false);
         graphics.drawString(font,

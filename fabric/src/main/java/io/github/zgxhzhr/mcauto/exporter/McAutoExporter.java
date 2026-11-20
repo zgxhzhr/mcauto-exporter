@@ -8,16 +8,13 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
-import net.minecraft.world.item.CreativeModeTabs;
 
 public final class McAutoExporter implements ModInitializer, ClientModInitializer {
 
     @Override
     public void onInitialize() {
         ModItems.register();
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
-                .register(entries -> entries.accept(ModItems.MIAO_WU_JI));
+        ModCreativeTabs.register();
     }
 
     @Override

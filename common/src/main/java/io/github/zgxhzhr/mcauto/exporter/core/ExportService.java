@@ -41,6 +41,7 @@ public final class ExportService {
     private int suspect;
     private String error = "";
     private String currentLabel = "";
+    private String lastResult = "";
     private final Deque<String> log = new ArrayDeque<>();
     private Path output;
     private long startedAt;
@@ -83,6 +84,7 @@ public final class ExportService {
         noVisual = 0;
         suspect = 0;
         error = "";
+        lastResult = "";
         startedAt = System.currentTimeMillis();
         output = ExporterConfig.get().outputPath();
         log.clear();
@@ -167,8 +169,15 @@ public final class ExportService {
         }
         index++;
         if (targetDone()) {
-            finish(request.mode == ExportMode.ICONS_ONLY || request.mode == ExportMode.SINGLE_ICON
-                    ? "图标导出完成" : "导出完成");
+            String message;
+            if (request.mode == ExportMode.SINGLE_ICON) {
+                message = "单个图标导出完成（仅写入 PNG）";
+            } else if (request.mode == ExportMode.ICONS_ONLY) {
+                message = "图标导出完成";
+            } else {
+                message = "导出完成";
+            }
+            finish(message);
         }
     }
 
@@ -193,8 +202,11 @@ public final class ExportService {
                 LmsWriter.write(output, targets, true, ExporterConfig.get().effectNeutral);
             }
             writeStatus("DONE", message);
-            log.add(message + "：成功 " + targets.size() + "，失败 " + failed
-                    + "，无可见模型 " + noVisual + "，可疑 " + suspect);
+            int success = Math.max(0, targets.size() - failed - noVisual);
+            lastResult = message + " · 成功 " + success + "，失败 " + failed
+                    + (noVisual > 0 ? "，无可见模型 " + noVisual : "")
+                    + (suspect > 0 ? "，可疑 " + suspect : "");
+            log.add(lastResult);
         } catch (IOException e) {
             fail("写 JSON 失败：" + e.getMessage());
             return;
@@ -205,6 +217,7 @@ public final class ExportService {
 
     private void fail(String message) {
         error = message;
+        lastResult = "失败：" + message;
         try {
             writeStatus("FAILED", message);
         } catch (IOException ignored) {
@@ -243,6 +256,11 @@ public final class ExportService {
 
     public String currentLabel() {
         return currentLabel;
+    }
+
+    /** 最近一次导出的结果摘要（成功/失败条数），供界面在空闲时展示。 */
+    public String lastResult() {
+        return lastResult;
     }
 
     public int done() {
