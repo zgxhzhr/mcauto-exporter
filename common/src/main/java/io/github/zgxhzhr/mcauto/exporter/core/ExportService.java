@@ -122,7 +122,7 @@ public final class ExportService {
             }
             BufferedImage image = switch (target.kind) {
                 case ITEM -> ItemIconRenderer.render(target.stack, size);
-                case ENTITY -> EntityIconRenderer.render(target.entityType, size, 225.0F);
+                case ENTITY -> EntityIconRenderer.render(target.entityType, size, 150.0F);
                 case EFFECT -> EffectIconRenderer.render(target.id, size);
             };
             if (image != null && !ImageUtil.blank(image)) {

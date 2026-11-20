@@ -16,7 +16,8 @@ import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 
 /**
- * 实体图标：客户端离屏渲染，128×128。渲染器依赖运行时状态的实体会渲染失败或失真，由上层标记 suspect。
+ * 实体图标：客户端离屏渲染，默认 128×128。
+ * 先按碰撞箱估一个比例渲染，再按实际像素范围重新缩放并居中，避免大体型实体被裁切。
  */
 public final class EntityIconRenderer {
     private EntityIconRenderer() {
@@ -36,19 +37,89 @@ public final class EntityIconRenderer {
         if (entity == null) {
             return null;
         }
-        TextureTarget target = null;
-        ByteBuffer buffer = null;
-        MultiBufferSource.BufferSource buffers = null;
         try {
             entity.setPos(0.0, 0.0, 0.0);
             entity.setYRot(yaw);
             entity.setXRot(0.0F);
             entity.setYHeadRot(yaw);
+            if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+                living.yBodyRot = yaw;
+                living.yBodyRotO = yaw;
+            }
             entity.setOldPosAndRot();
             entity.setDeltaMovement(0.0, 0.0, 0.0);
             entity.setNoGravity(true);
             entity.tickCount = 20;
 
+            float bbH = Math.max(entity.getBbHeight(), 0.2F);
+            float bbW = Math.max(entity.getBbWidth(), 0.2F);
+            float fit = size * 0.86F;
+            float scale = Math.min(fit / bbH, fit / (bbW * 2.2F));
+            float maxScale = size * 1.2F;
+            scale = Math.min(scale, maxScale);
+
+            float tx = size / 2.0F;
+            float ty = size * 0.94F;
+            BufferedImage image = draw(entity, size, yaw, tx, ty, scale);
+            if (image == null) {
+                return null;
+            }
+            // 迭代校正：内容触边说明已溢出，先缩小；不再触边后按实际像素范围缩放并居中
+            float target = size * 0.88F;
+            for (int i = 0; i < 6; i++) {
+                int[] box = bounds(image);
+                if (box == null) {
+                    return null;
+                }
+                boolean clipped = box[0] <= 0 || box[1] <= 0 || box[2] >= size - 1 || box[3] >= size - 1;
+                float contentW = box[2] - box[0] + 1;
+                float contentH = box[3] - box[1] + 1;
+                float newScale;
+                if (clipped) {
+                    newScale = scale * 0.6F;
+                } else {
+                    float k = Math.min(target / contentW, target / contentH);
+                    newScale = Math.min(scale * k, maxScale);
+                    if (Math.abs(newScale / scale - 1.0F) < 0.03F) {
+                        break;
+                    }
+                }
+                float k = newScale / scale;
+                float centerX = (box[0] + box[2]) / 2.0F;
+                tx = size / 2.0F - k * (centerX - tx);
+                ty = ty + k * (ty - box[3]);
+                scale = newScale;
+                BufferedImage next = draw(entity, size, yaw, tx, ty, scale);
+                if (next == null) {
+                    break;
+                }
+                image = next;
+            }
+            // 收尾对齐：把内容底边落到基线、水平居中，避免最后一像素贴边
+            int[] finalBox = bounds(image);
+            if (finalBox != null) {
+                float centerX = (finalBox[0] + finalBox[2]) / 2.0F;
+                float alignTx = size / 2.0F - (centerX - tx);
+                float alignTy = ty + (ty - finalBox[3]);
+                if (Math.abs(alignTx - tx) > 0.5F || Math.abs(alignTy - ty) > 0.5F) {
+                    BufferedImage aligned = draw(entity, size, yaw, alignTx, alignTy, scale);
+                    if (aligned != null) {
+                        image = aligned;
+                    }
+                }
+            }
+            return image;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static BufferedImage draw(Entity entity, int size, float yaw, float tx, float ty, float scale) {
+        Minecraft mc = Minecraft.getInstance();
+        TextureTarget target = null;
+        ByteBuffer buffer = null;
+        MultiBufferSource.BufferSource buffers = null;
+        try {
             target = new TextureTarget(size, size, true, Minecraft.ON_OSX);
             target.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             target.clear(Minecraft.ON_OSX);
@@ -67,9 +138,7 @@ public final class EntityIconRenderer {
             buffers = mc.renderBuffers().bufferSource();
             PoseStack pose = new PoseStack();
             pose.pushPose();
-            pose.translate(0.0F, 0.0F, -11000.0F);
-            pose.translate(size / 2.0F, size * 0.92F, 0.0F);
-            float scale = size / 3.2F;
+            pose.translate(tx, ty, 0.0F);
             pose.scale(scale, -scale, scale);
             mc.getEntityRenderDispatcher().render(entity, 0.0, 0.0, 0.0, yaw, 0.0F, pose,
                     buffers, 0xF000F0);
@@ -125,5 +194,32 @@ public final class EntityIconRenderer {
                     VertexSorting.ORTHOGRAPHIC_Z);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
+    }
+
+    /** 返回内容边界 {x0, y0, x1, y1}，无内容返回 null。 */
+    private static int[] bounds(BufferedImage image) {
+        int x0 = Integer.MAX_VALUE;
+        int y0 = Integer.MAX_VALUE;
+        int x1 = -1;
+        int y1 = -1;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) >>> 24) > 8) {
+                    if (x < x0) {
+                        x0 = x;
+                    }
+                    if (x > x1) {
+                        x1 = x;
+                    }
+                    if (y < y0) {
+                        y0 = y;
+                    }
+                    if (y > y1) {
+                        y1 = y;
+                    }
+                }
+            }
+        }
+        return x1 < 0 ? null : new int[]{x0, y0, x1, y1};
     }
 }
