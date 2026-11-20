@@ -6,13 +6,13 @@ import io.github.zgxhzhr.mcauto.exporter.core.ExportRequest;
 import io.github.zgxhzhr.mcauto.exporter.core.ExportService;
 import io.github.zgxhzhr.mcauto.exporter.core.Target;
 import io.github.zgxhzhr.mcauto.exporter.platform.Services;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.Util;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,10 +22,12 @@ import java.util.Set;
 
 /**
  * 导出主界面：命名空间、类型、尺寸、模式、进度。
+ *
+ * <p>视觉层级：纯色底 → 木色主面板 → 分区（命名空间 / 导出选项 / 状态 / 操作）。
  */
 public final class ExporterScreen extends Screen {
-    private static final int RIGHT_W = 220;
     private static final int ROW_H = 24;
+    private static final int PAD = 14;
 
     private final List<NsEntry> namespaces = new ArrayList<>();
     private final Set<String> selected = new HashSet<>();
@@ -37,18 +39,30 @@ public final class ExporterScreen extends Screen {
     private boolean size128 = true;
     private int scroll;
     private String message = "";
-    private Button modeButton;
-    private Button startButton;
+    private WoodButton modeButton;
+    private WoodButton itemsButton;
+    private WoodButton entitiesButton;
+    private WoodButton effectsButton;
+    private WoodButton size32Button;
+    private WoodButton size128Button;
+    private WoodButton startButton;
 
     private int panelX;
     private int panelY;
     private int panelW;
     private int panelH;
-    private int leftX;
-    private int leftW;
-    private int rightX;
-    private int listTop;
+    private int contentLeft;
+    private int contentRight;
+    private int contentTop;
+    private int listX;
+    private int listY;
+    private int listW;
+    private int listH;
     private int visibleRows;
+    private int rightX;
+    private int rightW;
+    private int statusY;
+    private int actionY;
 
     public ExporterScreen() {
         super(Component.literal("mcauto exporter"));
@@ -72,59 +86,77 @@ public final class ExporterScreen extends Screen {
             selected.add(namespaces.get(0).id);
         }
 
-        rightX = width - 16 - RIGHT_W;
-        leftW = Math.max(120, Math.min(210, rightX - 40));
-        leftX = Math.max(12, rightX - 16 - leftW);
-        panelX = leftX - 8;
-        panelY = 34;
-        panelW = rightX + RIGHT_W + 8 - panelX;
-        panelH = height - panelY - 12;
-        listTop = 52;
-        visibleRows = Math.max(3, (height - 70 - listTop) / ROW_H);
+        panelW = Math.min(560, width - 32);
+        panelH = height - 32;
+        panelX = (width - panelW) / 2;
+        panelY = (height - panelH) / 2;
+        contentLeft = panelX + PAD;
+        contentRight = panelX + panelW - PAD;
+        contentTop = panelY + 32;
 
-        int x = rightX;
-        int y = 48;
-        modeButton = addRenderableWidget(Button.builder(modeLabel(), b -> {
+        rightW = Math.min(208, Math.max(150, (contentRight - contentLeft) / 2));
+        rightX = contentRight - rightW;
+        listX = contentLeft;
+        listW = rightX - 12 - listX;
+        listY = contentTop + 13;
+
+        actionY = panelY + panelH - PAD - 20;
+        statusY = actionY - 30;
+        listH = Math.max(36, statusY - 8 - listY);
+        visibleRows = Math.max(2, listH / ROW_H);
+
+        int y = contentTop + 13;
+        modeButton = addRenderableWidget(new WoodButton(rightX, y, rightW, 20, modeLabel(), () -> {
             mode = switch (mode) {
                 case FULL -> ExportMode.JSON_ONLY;
                 case JSON_ONLY -> ExportMode.ICONS_ONLY;
                 default -> ExportMode.FULL;
             };
-            b.setMessage(modeLabel());
-        }).bounds(x, y, RIGHT_W, 20).build());
+            modeButton.setMessage(modeLabel());
+        }));
 
-        addRenderableWidget(Button.builder(typeLabel("物品 / 方块", items), b -> {
+        int half = (rightW - 8) / 2;
+        itemsButton = addRenderableWidget(new WoodButton(rightX, y + 25, half, 20,
+                Component.literal("物品 / 方块"), () -> {
             items = !items;
-            b.setMessage(typeLabel("物品 / 方块", items));
-        }).bounds(x, y + 26, 106, 20).build());
-        addRenderableWidget(Button.builder(typeLabel("实体", entities), b -> {
+            itemsButton.setChecked(items);
+        }).withCheckBox(items));
+        entitiesButton = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 25, half, 20,
+                Component.literal("实体"), () -> {
             entities = !entities;
-            b.setMessage(typeLabel("实体", entities));
-        }).bounds(x + 114, y + 26, 106, 20).build());
-        addRenderableWidget(Button.builder(typeLabel("效果", effects), b -> {
+            entitiesButton.setChecked(entities);
+        }).withCheckBox(entities));
+        effectsButton = addRenderableWidget(new WoodButton(rightX, y + 50, rightW, 20,
+                Component.literal("效果"), () -> {
             effects = !effects;
-            b.setMessage(typeLabel("效果", effects));
-        }).bounds(x, y + 52, RIGHT_W, 20).build());
+            effectsButton.setChecked(effects);
+        }).withCheckBox(effects));
 
-        addRenderableWidget(Button.builder(sizeLabel(32, size32), b -> {
+        size32Button = addRenderableWidget(new WoodButton(rightX, y + 75, half, 20,
+                Component.literal("32×32"), () -> {
             size32 = !size32;
-            b.setMessage(sizeLabel(32, size32));
-        }).bounds(x, y + 78, 106, 20).build());
-        addRenderableWidget(Button.builder(sizeLabel(128, size128), b -> {
+            size32Button.setChecked(size32);
+        }).withCheckBox(size32));
+        size128Button = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 75, half, 20,
+                Component.literal("128×128"), () -> {
             size128 = !size128;
-            b.setMessage(sizeLabel(128, size128));
-        }).bounds(x + 114, y + 78, 106, 20).build());
+            size128Button.setChecked(size128);
+        }).withCheckBox(size128));
 
-        addRenderableWidget(Button.builder(Component.literal("导出单个图标…"), b ->
-                Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON))))
-                .bounds(x, y + 104, RIGHT_W, 20).build());
+        addRenderableWidget(new WoodButton(rightX, y + 100, rightW, 20,
+                Component.literal("导出单个图标…"), () ->
+                Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
 
-        startButton = addRenderableWidget(Button.builder(Component.literal("开始导出"), b -> start())
-                .bounds(x, height - 54, 106, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("打开目录"), b -> openOutput())
-                .bounds(x + 114, height - 54, 106, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("关闭"), b -> onClose())
-                .bounds(x, height - 30, RIGHT_W, 20).build());
+        int gap = 8;
+        int closeW = 72;
+        int openW = 92;
+        int startW = Math.max(90, contentRight - contentLeft - closeW - openW - gap * 2);
+        startButton = addRenderableWidget(new WoodButton(contentLeft, actionY, startW, 20,
+                Component.literal("开始导出"), this::start));
+        addRenderableWidget(new WoodButton(contentLeft + startW + gap, actionY, openW, 20,
+                Component.literal("打开目录"), this::openOutput));
+        addRenderableWidget(new WoodButton(contentRight - closeW, actionY, closeW, 20,
+                Component.literal("关闭"), this::onClose));
     }
 
     private void start() {
@@ -185,14 +217,6 @@ public final class ExporterScreen extends Screen {
         return Component.literal("模式：" + mode.label);
     }
 
-    private Component typeLabel(String name, boolean on) {
-        return Component.literal((on ? "[x] " : "[ ] ") + name);
-    }
-
-    private Component sizeLabel(int size, boolean on) {
-        return Component.literal((on ? "[x] " : "[ ] ") + size + "×" + size);
-    }
-
     private Set<String> contentNamespaces() {
         Set<String> out = new HashSet<>();
         BuiltInRegistries.ITEM.keySet().forEach(id -> out.add(id.getNamespace()));
@@ -202,88 +226,116 @@ public final class ExporterScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // 不使用原版模糊/泥土背景：纯色底更稳，也避免世界画面透上来降低可读性。
+    }
+
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(0, 0, width, height, 0xC0000000);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0121212);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + 1, 0x66FFFFFF);
-        graphics.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0x66FFFFFF);
+        graphics.fill(0, 0, width, height, McAutoStyle.SCREEN_BG);
+        McAutoStyle.panel(graphics, panelX, panelY, panelW, panelH);
 
-        graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFF);
-        String head = "命名空间 · 点击选择";
+        Font font = this.font;
+        McAutoStyle.centered(graphics, font, title.getString(), width / 2, panelY + 9, McAutoStyle.HEADER_COLOR);
+        McAutoStyle.separator(graphics, panelX + 10, panelX + panelW - 10, panelY + 25);
+
+        // 分区标题
+        graphics.drawString(font, "命名空间", listX, contentTop, McAutoStyle.HEADER_COLOR, false);
         String count = "已选 " + selected.size() + "/" + namespaces.size();
-        graphics.drawString(font, clamp(head, leftW - font.width(count) - 10), leftX, 40, 0xFFFFFF);
-        graphics.drawString(font, count, leftX + leftW - font.width(count), 40, 0xDCDCDC);
+        graphics.drawString(font, count, listX + listW - font.width(count), contentTop,
+                McAutoStyle.SUBTEXT_COLOR, false);
+        graphics.drawString(font, "导出选项", rightX, contentTop, McAutoStyle.HEADER_COLOR, false);
 
-        int listH = visibleRows * ROW_H;
-        graphics.fill(leftX - 4, listTop - 2, leftX + leftW, listTop + listH + 2, 0x90000000);
+        renderList(graphics, mouseX, mouseY);
+        renderStatus(graphics);
+
+        super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private void renderList(GuiGraphics graphics, int mouseX, int mouseY) {
+        Font font = this.font;
+        graphics.fill(listX, listY, listX + listW, listY + listH, McAutoStyle.LIST_BG);
+        graphics.renderOutline(listX, listY, listW, listH, 0x558B5A2B);
+
+        if (namespaces.isEmpty()) {
+            graphics.drawString(font, "没有可导出的命名空间", listX + 8, listY + 8,
+                    McAutoStyle.SUBTEXT_COLOR, false);
+            return;
+        }
+
+        graphics.enableScissor(listX, listY, listX + listW, listY + listH);
         for (int row = 0; row < visibleRows; row++) {
             int idx = scroll + row;
             if (idx >= namespaces.size()) {
                 break;
             }
             NsEntry entry = namespaces.get(idx);
-            int rowY = listTop + row * ROW_H;
+            int rowY = listY + row * ROW_H;
             boolean on = selected.contains(entry.id);
-            boolean hover = mouseX >= leftX && mouseX < leftX + leftW
-                    && mouseY >= rowY && mouseY < rowY + ROW_H;
+            boolean hover = McAutoStyle.inRect(listX, rowY, listW, ROW_H, mouseX, mouseY);
             if (on) {
-                graphics.fill(leftX, rowY, leftX + leftW, rowY + ROW_H - 1, 0x3055CC55);
+                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, McAutoStyle.ROW_SELECTED);
             } else if (hover) {
-                graphics.fill(leftX, rowY, leftX + leftW, rowY + ROW_H - 1, 0x30FFFFFF);
+                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, McAutoStyle.ROW_HOVER);
             }
-            graphics.drawString(font, (on ? "■ " : "□ ") + clamp(entry.name, leftW - 18),
-                    leftX + 2, rowY + 3, on ? 0x7CFF7C : 0xFFFFFF);
-            graphics.drawString(font, clamp(entry.id, leftW - 18), leftX + 12, rowY + 13, 0xC0C0C0);
+            McAutoStyle.checkBox(graphics, listX + 6, rowY + 7, on);
+            int textLeft = listX + 6 + McAutoStyle.checkSize() + 6;
+            int textW = listX + listW - 6 - textLeft;
+            graphics.drawString(font, McAutoStyle.clamp(font, entry.name, textW), textLeft, rowY + 3,
+                    on ? McAutoStyle.ACCENT : McAutoStyle.TEXT_COLOR, false);
+            graphics.drawString(font, McAutoStyle.clamp(font, entry.id, textW), textLeft, rowY + 13,
+                    McAutoStyle.SUBTEXT_COLOR, false);
         }
-        graphics.drawString(font, "滚轮翻页", leftX, listTop + listH + 6, 0xA8A8A8);
+        graphics.disableScissor();
 
-        ExportService service = ExportService.get();
-        int infoY = 180;
-        if (service.isRunning()) {
-            graphics.drawString(font, clamp("导出中：" + service.currentLabel(), RIGHT_W), rightX, infoY, 0xFFFF80);
-            int barlen = RIGHT_W;
-            graphics.fill(rightX, infoY + 14, rightX + barlen, infoY + 22, 0x66000000);
-            int filled = service.total() == 0 ? 0 : (int) (barlen * (service.done() / (float) service.total()));
-            graphics.fill(rightX, infoY + 14, rightX + filled, infoY + 22, 0xFF55CC55);
-            graphics.drawString(font, service.done() + " / " + service.total(), rightX, infoY + 28, 0xFFFFFF);
-            int line = infoY + 44;
-            List<String> log = service.recentLog();
-            for (String entry : log.subList(Math.max(0, log.size() - 4), log.size())) {
-                if (line > height - 62) {
-                    break;
-                }
-                graphics.drawString(font, clamp(entry, RIGHT_W), rightX, line, 0xB0B0B0);
-                line += 11;
-            }
-            startButton.active = false;
-        } else {
-            startButton.active = true;
-            if (!service.error().isEmpty()) {
-                graphics.drawString(font, clamp(service.error(), RIGHT_W), rightX, infoY, 0xFF7777);
-            }
+        int contentH = namespaces.size() * ROW_H;
+        if (contentH > listH) {
+            int trackH = listH - 4;
+            int thumbH = Math.max(16, trackH * listH / contentH);
+            int maxScroll = contentH - listH;
+            int progress = Math.min(trackH - thumbH,
+                    (int) ((long) scroll * (trackH - thumbH) / Math.max(1, maxScroll)));
+            int barX = listX + listW - 4;
+            graphics.fill(barX, listY + 2 + progress, barX + 2, listY + 2 + progress + thumbH, 0x66FFFFFF);
         }
-        if (!message.isEmpty()) {
-            graphics.drawString(font, clamp(message, RIGHT_W), rightX, height - 72, 0xFFAA55);
-        }
-        graphics.drawString(font, clamp("输出：" + ExporterConfig.get().outputPath(), leftW),
-                leftX, height - 16, 0xC8C8C8);
-        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private String clamp(String text, int maxWidth) {
-        if (font.width(text) <= maxWidth) {
-            return text;
+    private void renderStatus(GuiGraphics graphics) {
+        Font font = this.font;
+        ExportService service = ExportService.get();
+        if (service.isRunning()) {
+            String label = McAutoStyle.clamp(font, "导出中：" + service.currentLabel(),
+                    contentRight - contentLeft);
+            graphics.drawString(font, label, contentLeft, statusY, McAutoStyle.ACCENT, false);
+            int barW = contentRight - contentLeft;
+            graphics.fill(contentLeft, statusY + 11, contentLeft + barW, statusY + 17, 0x66000000);
+            int filled = service.total() == 0 ? 0 : (int) (barW * (service.done() / (float) service.total()));
+            graphics.fill(contentLeft, statusY + 11, contentLeft + filled, statusY + 17, 0xFFD0A060);
+            String detail = service.done() + " / " + service.total();
+            List<String> log = service.recentLog();
+            if (!log.isEmpty()) {
+                detail += " · " + log.get(log.size() - 1);
+            }
+            graphics.drawString(font, McAutoStyle.clamp(font, detail, contentRight - contentLeft),
+                    contentLeft, statusY + 20, McAutoStyle.SUBTEXT_COLOR, false);
+            return;
         }
-        String dots = "…";
-        return font.plainSubstrByWidth(text, maxWidth - font.width(dots)) + dots;
+        String line = !message.isEmpty() ? message
+                : !service.error().isEmpty() ? service.error() : "就绪";
+        int color = !message.isEmpty() ? McAutoStyle.ACCENT
+                : !service.error().isEmpty() ? McAutoStyle.DANGER : McAutoStyle.SUBTEXT_COLOR;
+        graphics.drawString(font, McAutoStyle.clamp(font, line, contentRight - contentLeft),
+                contentLeft, statusY, color, false);
+        graphics.drawString(font,
+                McAutoStyle.clamp(font, "输出：" + ExporterConfig.get().outputPath(),
+                        contentRight - contentLeft),
+                contentLeft, statusY + 11, McAutoStyle.SUBTEXT_COLOR, false);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (mouseX >= leftX && mouseX < leftX + leftW
-                && mouseY >= listTop && mouseY < listTop + visibleRows * ROW_H) {
-            int row = (int) ((mouseY - listTop) / ROW_H);
+        if (McAutoStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
+            int row = (int) ((mouseY - listY) / ROW_H);
             int idx = scroll + row;
             if (idx < namespaces.size()) {
                 String id = namespaces.get(idx).id;
@@ -299,8 +351,7 @@ public final class ExporterScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (namespaces.size() > visibleRows
-                && mouseX >= leftX && mouseX < leftX + leftW
-                && mouseY >= listTop && mouseY < listTop + visibleRows * ROW_H) {
+                && McAutoStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
             scroll = Math.max(0, Math.min(namespaces.size() - visibleRows,
                     scroll - (int) Math.signum(scrollY)));
             return true;

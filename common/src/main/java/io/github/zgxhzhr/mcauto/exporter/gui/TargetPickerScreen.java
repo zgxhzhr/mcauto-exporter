@@ -6,8 +6,8 @@ import io.github.zgxhzhr.mcauto.exporter.core.ExportService;
 import io.github.zgxhzhr.mcauto.exporter.core.Target;
 import io.github.zgxhzhr.mcauto.exporter.scan.RegistryScanner;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -19,7 +19,8 @@ import java.util.List;
  * 单条图标导出：搜索并点选一个物品 / 实体 / 效果。
  */
 public final class TargetPickerScreen extends Screen {
-    private static final int ROW_H = 22;
+    private static final int ROW_H = 24;
+    private static final int PAD = 14;
 
     private final Screen parent;
     private final ExportRequest template;
@@ -29,10 +30,18 @@ public final class TargetPickerScreen extends Screen {
     private int scroll;
     private String message = "";
 
+    private int panelX;
+    private int panelY;
+    private int panelW;
+    private int panelH;
+    private int contentLeft;
+    private int contentRight;
     private int listX;
-    private int listW;
     private int listY;
+    private int listW;
+    private int listH;
     private int visible;
+    private int messageY;
 
     public TargetPickerScreen(Screen parent, ExportRequest template) {
         super(Component.literal("选择要导出的条目"));
@@ -49,17 +58,26 @@ public final class TargetPickerScreen extends Screen {
             message = "扫描失败：" + e.getMessage();
         }
 
-        listW = Math.min(420, width - 40);
-        listX = (width - listW) / 2;
-        listY = 62;
-        visible = Math.max(3, (height - listY - 60) / ROW_H);
+        panelW = Math.min(520, width - 32);
+        panelH = height - 32;
+        panelX = (width - panelW) / 2;
+        panelY = (height - panelH) / 2;
+        contentLeft = panelX + PAD;
+        contentRight = panelX + panelW - PAD;
+        listX = contentLeft;
+        listW = contentRight - contentLeft;
+        listY = panelY + 58;
+        int actionY = panelY + panelH - PAD - 20;
+        listH = Math.max(36, actionY - 24 - listY);
+        visible = Math.max(2, listH / ROW_H);
+        messageY = actionY - 14;
 
-        search = new EditBox(font, listX, 34, listW, 18, Component.literal("搜索"));
+        search = new EditBox(font, contentLeft, panelY + 34, listW, 18, Component.literal("搜索"));
         search.setMaxLength(128);
         search.setResponder(text -> refresh());
         addRenderableWidget(search);
-        addRenderableWidget(Button.builder(Component.literal("返回"), b -> onClose())
-                .bounds(width / 2 - 50, height - 30, 100, 20).build());
+        addRenderableWidget(new WoodButton(contentRight - 80, actionY, 80, 20,
+                Component.literal("返回"), this::onClose));
         refresh();
     }
 
@@ -90,13 +108,41 @@ public final class TargetPickerScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(0, 0, width, height, 0xC0000000);
-        graphics.drawCenteredString(font, title, width / 2, 14, 0xFFFFFF);
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // 纯色底，不用原版模糊背景
+    }
 
-        int listH = visible * ROW_H;
-        graphics.fill(listX - 4, listY - 4, listX + listW + 4, listY + listH + 4, 0xB0000000);
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, width, height, McAutoStyle.SCREEN_BG);
+        McAutoStyle.panel(graphics, panelX, panelY, panelW, panelH);
+
+        Font font = this.font;
+        McAutoStyle.centered(graphics, font, title.getString(), width / 2, panelY + 9, McAutoStyle.HEADER_COLOR);
+        McAutoStyle.separator(graphics, panelX + 10, panelX + panelW - 10, panelY + 25);
+
+        graphics.fill(listX, listY, listX + listW, listY + listH, McAutoStyle.LIST_BG);
+        graphics.renderOutline(listX, listY, listW, listH, 0x558B5A2B);
+        renderRows(graphics, font, mouseX, mouseY);
+
+        String hint = "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击即可导出";
+        graphics.drawString(font, McAutoStyle.clamp(font, hint, contentRight - contentLeft - 90),
+                contentLeft, messageY, McAutoStyle.SUBTEXT_COLOR, false);
+        if (!message.isEmpty()) {
+            graphics.drawString(font, McAutoStyle.clamp(font, message, contentRight - contentLeft),
+                    contentLeft, messageY - 11, McAutoStyle.DANGER, false);
+        }
+
+        super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private void renderRows(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
+        if (filtered.isEmpty()) {
+            graphics.drawString(font, "没有匹配的条目", listX + 8, listY + 8,
+                    McAutoStyle.SUBTEXT_COLOR, false);
+            return;
+        }
+        graphics.enableScissor(listX, listY, listX + listW, listY + listH);
         for (int row = 0; row < visible; row++) {
             int idx = scroll + row;
             if (idx >= filtered.size()) {
@@ -104,54 +150,54 @@ public final class TargetPickerScreen extends Screen {
             }
             Target target = filtered.get(idx);
             int rowY = listY + row * ROW_H;
-            boolean hover = mouseX >= listX && mouseX < listX + listW
-                    && mouseY >= rowY && mouseY < rowY + ROW_H;
-            if (hover) {
-                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, 0x30FFFFFF);
+            if (McAutoStyle.inRect(listX, rowY, listW, ROW_H, mouseX, mouseY)) {
+                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, McAutoStyle.ROW_HOVER);
             }
             String kind;
             int kindColor;
             switch (target.kind) {
                 case ITEM -> {
                     kind = "[物品]";
-                    kindColor = 0xFFD966;
+                    kindColor = 0xFFFFD966;
                 }
                 case ENTITY -> {
                     kind = "[实体]";
-                    kindColor = 0x66E0E0;
+                    kindColor = 0xFF66E0E0;
                 }
                 default -> {
                     kind = "[效果]";
-                    kindColor = 0xCC99FF;
+                    kindColor = 0xFFCC99FF;
                 }
             }
             String name = !target.nameZh.isEmpty() ? target.nameZh : target.nameEn;
             if (name.isEmpty()) {
                 name = target.id.getPath();
             }
-            graphics.drawString(font, kind, listX + 2, rowY + 3, kindColor);
-            graphics.drawString(font, clamp(name, listW - 60), listX + 8 + font.width(kind), rowY + 3, 0xFFFFFF);
-            graphics.drawString(font, clamp(target.id.toString(), listW - 16), listX + 8, rowY + 13, 0xC0C0C0);
+            int kindW = font.width(kind);
+            graphics.drawString(font, kind, listX + 6, rowY + 3, kindColor, false);
+            graphics.drawString(font,
+                    McAutoStyle.clamp(font, name, listX + listW - 6 - (listX + 6 + kindW + 4)),
+                    listX + 6 + kindW + 4, rowY + 3, McAutoStyle.TEXT_COLOR, false);
+            graphics.drawString(font, McAutoStyle.clamp(font, target.id.toString(), listW - 12),
+                    listX + 6, rowY + 13, McAutoStyle.SUBTEXT_COLOR, false);
         }
-        graphics.drawString(font, "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出", listX, listY + listH + 8, 0xC8C8C8);
-        if (!message.isEmpty()) {
-            graphics.drawString(font, clamp(message, listW), listX, height - 48, 0xFF7777);
-        }
-        super.render(graphics, mouseX, mouseY, partialTick);
-    }
+        graphics.disableScissor();
 
-    private String clamp(String text, int maxWidth) {
-        if (font.width(text) <= maxWidth) {
-            return text;
+        int contentH = filtered.size() * ROW_H;
+        if (contentH > listH) {
+            int trackH = listH - 4;
+            int thumbH = Math.max(16, trackH * listH / contentH);
+            int maxScroll = contentH - listH;
+            int progress = Math.min(trackH - thumbH,
+                    (int) ((long) scroll * (trackH - thumbH) / Math.max(1, maxScroll)));
+            int barX = listX + listW - 4;
+            graphics.fill(barX, listY + 2 + progress, barX + 2, listY + 2 + progress + thumbH, 0x66FFFFFF);
         }
-        String dots = "…";
-        return font.plainSubstrByWidth(text, maxWidth - font.width(dots)) + dots;
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (mouseX >= listX && mouseX < listX + listW
-                && mouseY >= listY && mouseY < listY + visible * ROW_H) {
+        if (McAutoStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
             int row = (int) ((mouseY - listY) / ROW_H);
             int idx = scroll + row;
             if (idx < filtered.size()) {
@@ -164,9 +210,7 @@ public final class TargetPickerScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (filtered.size() > visible
-                && mouseX >= listX && mouseX < listX + listW
-                && mouseY >= listY && mouseY < listY + visible * ROW_H) {
+        if (filtered.size() > visible && McAutoStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
             scroll = Math.max(0, Math.min(filtered.size() - visible, scroll - (int) Math.signum(scrollY)));
             return true;
         }
