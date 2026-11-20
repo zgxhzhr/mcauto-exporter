@@ -19,8 +19,7 @@ import java.util.List;
  * 单条图标导出：搜索并点选一个物品 / 实体 / 效果。
  */
 public final class TargetPickerScreen extends Screen {
-    private static final int ROW_H = 14;
-    private static final int VISIBLE = 14;
+    private static final int ROW_H = 22;
 
     private final Screen parent;
     private final ExportRequest template;
@@ -29,6 +28,11 @@ public final class TargetPickerScreen extends Screen {
     private EditBox search;
     private int scroll;
     private String message = "";
+
+    private int listX;
+    private int listW;
+    private int listY;
+    private int visible;
 
     public TargetPickerScreen(Screen parent, ExportRequest template) {
         super(Component.literal("选择要导出的条目"));
@@ -44,11 +48,18 @@ public final class TargetPickerScreen extends Screen {
         } catch (Throwable e) {
             message = "扫描失败：" + e.getMessage();
         }
-        search = new EditBox(font, width / 2 - 150, 32, 300, 18, Component.literal("搜索"));
+
+        listW = Math.min(420, width - 40);
+        listX = (width - listW) / 2;
+        listY = 62;
+        visible = Math.max(3, (height - listY - 60) / ROW_H);
+
+        search = new EditBox(font, listX, 34, listW, 18, Component.literal("搜索"));
+        search.setMaxLength(128);
         search.setResponder(text -> refresh());
         addRenderableWidget(search);
         addRenderableWidget(Button.builder(Component.literal("返回"), b -> onClose())
-                .bounds(width / 2 - 40, height - 30, 80, 20).build());
+                .bounds(width / 2 - 50, height - 30, 100, 20).build());
         refresh();
     }
 
@@ -75,18 +86,18 @@ public final class TargetPickerScreen extends Screen {
             message = error;
             return;
         }
-        Minecraft.getInstance().setScreen(new ExporterScreen());
+        Minecraft.getInstance().setScreen(parent);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
-        int listX = width / 2 - 150;
-        int listY = 58;
-        int listW = 300;
-        graphics.fill(listX - 4, listY - 2, listX + listW + 4, listY + VISIBLE * ROW_H + 2, 0x66000000);
-        for (int row = 0; row < VISIBLE; row++) {
+        graphics.fill(0, 0, width, height, 0xC0000000);
+        graphics.drawCenteredString(font, title, width / 2, 14, 0xFFFFFF);
+
+        int listH = visible * ROW_H;
+        graphics.fill(listX - 4, listY - 4, listX + listW + 4, listY + listH + 4, 0xB0000000);
+        for (int row = 0; row < visible; row++) {
             int idx = scroll + row;
             if (idx >= filtered.size()) {
                 break;
@@ -96,30 +107,51 @@ public final class TargetPickerScreen extends Screen {
             boolean hover = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_H;
             if (hover) {
-                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H, 0x33FFFFFF);
+                graphics.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, 0x30FFFFFF);
             }
-            String kind = switch (target.kind) {
-                case ITEM -> "[物品]";
-                case ENTITY -> "[实体]";
-                case EFFECT -> "[效果]";
-            };
+            String kind;
+            int kindColor;
+            switch (target.kind) {
+                case ITEM -> {
+                    kind = "[物品]";
+                    kindColor = 0xFFD966;
+                }
+                case ENTITY -> {
+                    kind = "[实体]";
+                    kindColor = 0x66E0E0;
+                }
+                default -> {
+                    kind = "[效果]";
+                    kindColor = 0xCC99FF;
+                }
+            }
             String name = !target.nameZh.isEmpty() ? target.nameZh : target.nameEn;
-            graphics.drawString(font, kind + " " + name, listX + 2, rowY + 3, 0xFFFFFF);
-            graphics.drawString(font, target.id.toString(), listX + listW - font.width(target.id.toString()),
-                    rowY + 3, 0x808080);
+            if (name.isEmpty()) {
+                name = target.id.getPath();
+            }
+            graphics.drawString(font, kind, listX + 2, rowY + 3, kindColor);
+            graphics.drawString(font, clamp(name, listW - 60), listX + 8 + font.width(kind), rowY + 3, 0xFFFFFF);
+            graphics.drawString(font, clamp(target.id.toString(), listW - 16), listX + 8, rowY + 13, 0xC0C0C0);
         }
-        graphics.drawString(font, "共 " + filtered.size() + " 条，滚轮翻页", listX, listY + VISIBLE * ROW_H + 8, 0x909090);
+        graphics.drawString(font, "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出", listX, listY + listH + 8, 0xC8C8C8);
         if (!message.isEmpty()) {
-            graphics.drawString(font, message, listX, height - 48, 0xFF6666);
+            graphics.drawString(font, clamp(message, listW), listX, height - 48, 0xFF7777);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
+    private String clamp(String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) {
+            return text;
+        }
+        String dots = "…";
+        return font.plainSubstrByWidth(text, maxWidth - font.width(dots)) + dots;
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int listX = width / 2 - 150;
-        int listY = 58;
-        if (mouseX >= listX && mouseX < listX + 300 && mouseY >= listY && mouseY < listY + VISIBLE * ROW_H) {
+        if (mouseX >= listX && mouseX < listX + listW
+                && mouseY >= listY && mouseY < listY + visible * ROW_H) {
             int row = (int) ((mouseY - listY) / ROW_H);
             int idx = scroll + row;
             if (idx < filtered.size()) {
@@ -132,8 +164,10 @@ public final class TargetPickerScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (filtered.size() > VISIBLE) {
-            scroll = Math.max(0, Math.min(filtered.size() - VISIBLE, scroll - (int) Math.signum(scrollY)));
+        if (filtered.size() > visible
+                && mouseX >= listX && mouseX < listX + listW
+                && mouseY >= listY && mouseY < listY + visible * ROW_H) {
+            scroll = Math.max(0, Math.min(filtered.size() - visible, scroll - (int) Math.signum(scrollY)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
