@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "mcauto_exporter",
+  "version": "${version}",
+  "name": "mcauto exporter",
+  "description": "In-game export of item, block, entity and effect icons and LMS-compatible data for mcmod workflows.",
+  "authors": ["zgxhzhr"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["io.github.zgxhzhr.mcauto.exporter.McAutoExporter"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}
