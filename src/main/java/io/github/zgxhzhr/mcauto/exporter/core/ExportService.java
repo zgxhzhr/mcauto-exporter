@@ -163,6 +163,7 @@ public final class ExportService {
         if (!any && target.kind == Target.Kind.ITEM) {
             failed++;
             log.add("渲染为空：" + target.id);
+            McAutoExporter.LOG.warn("渲染为空：{}", target.id);
         }
         index++;
         if (targetDone()) {

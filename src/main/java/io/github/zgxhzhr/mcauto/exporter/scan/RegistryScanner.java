@@ -14,6 +14,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -138,7 +139,22 @@ public final class RegistryScanner {
     private static String creativeTab(Item item, Minecraft mc) {
         if (creativeTabs == null) {
             creativeTabs = new HashMap<>();
+            // 原版只在打开创造模式物品栏时才构建标签页内容，自动导出前先手动构建一次
+            try {
+                if (mc.level != null && mc.player != null) {
+                    CreativeModeTabs.tryRebuildTabContents(
+                            mc.level.enabledFeatures(),
+                            mc.player.canUseGameMasterBlocks(),
+                            mc.level.registryAccess());
+                }
+            } catch (Throwable e) {
+                McAutoExporter.LOG.warn("构建创造模式标签页失败: {}", e.toString());
+            }
             for (CreativeModeTab tab : BuiltInRegistries.CREATIVE_MODE_TAB) {
+                // 搜索页包含所有物品，会把真实分类覆盖掉
+                if (tab.getType() == CreativeModeTab.Type.SEARCH) {
+                    continue;
+                }
                 String name;
                 try {
                     name = tab.getDisplayName().getString();
@@ -149,7 +165,8 @@ public final class RegistryScanner {
                     for (ItemStack stack : tab.getDisplayItems()) {
                         creativeTabs.putIfAbsent(stack.getItem(), name);
                     }
-                } catch (Throwable ignored) {
+                } catch (Throwable e) {
+                    McAutoExporter.LOG.warn("读取标签页 {} 失败: {}", name, e.toString());
                 }
             }
         }

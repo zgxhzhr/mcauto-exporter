@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexSorting;
+import io.github.zgxhzhr.mcauto.exporter.McAutoExporter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
@@ -46,7 +47,7 @@ public final class ItemIconRenderer {
             GuiGraphics graphics = new GuiGraphics(mc, mc.renderBuffers().bufferSource());
             PoseStack pose = graphics.pose();
             pose.pushPose();
-            pose.translate(0.0F, 0.0F, -11000.0F);
+            // 1.21.1 的 GUI modelview 已由 GameRenderer 平移 -11000，这里不能再加
             pose.translate(size / 2.0F, size / 2.0F, 0.0F);
             pose.scale(size / 16.0F, size / 16.0F, 1.0F);
             graphics.renderItem(stack, -8, -8);
@@ -77,6 +78,7 @@ public final class ItemIconRenderer {
             }
             return any ? image : null;
         } catch (Throwable t) {
+            McAutoExporter.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
         } finally {
             if (buffer != null) {
