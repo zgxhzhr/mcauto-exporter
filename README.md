@@ -81,6 +81,7 @@ Forge / NeoForge 尚未移植，需要时从模板恢复对应模块。
 ## 许可
 
 - 本仓库代码：MIT。
+- 物品贴图 `assets/mcauto_exporter/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
 - 图标导出的「一帧一个 + GUI 阶段离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
 - LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
 - Fabric API 为运行时依赖，不打包。

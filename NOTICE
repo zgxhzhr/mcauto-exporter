@@ -3,6 +3,11 @@ Copyright (c) 2026 zgxhzhr
 
 This project is licensed under the MIT License.
 
+Bundled assets:
+- common/src/main/resources/assets/mcauto_exporter/textures/item/miao_wu_ji.png
+  Original artwork contributed by the project author; distributed with this
+  repository under the MIT License.
+
 Third-party notes:
 - Fabric API is a runtime dependency (Apache-2.0), not bundled.
 - The in-game icon export approach (one target per frame, GUI-phase offscreen
