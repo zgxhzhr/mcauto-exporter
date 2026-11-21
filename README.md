@@ -10,9 +10,9 @@ MIT License。
 - 实体图标：128×128 离屏渲染，失败/空白会标记
 - 技术性实体（中英文名都缺失，如内部辅助实体）直接跳过，不写入 JSON
 - BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
-- 物品 `<ns>/items.json`、实体 `<ns>/entities.json` 与 LMS 字段一致
-- 效果 `<ns>/effects.json` 为本仓库扩展，字段见 `docs/lms-json.md`
-- 合并文件 `<ns>/all.json` 包含该命名空间全部条目，每条附加 `kind`
+- 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
+- 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
 - 进度、日志、错误都在界面内显示
 
 ## 使用
@@ -40,10 +40,10 @@ MIT License。
 mcauto-export/
 ├─ status.json
 └─ <namespace>/
-   ├─ items.json                 物品，JSONL，LMS 字段
-   ├─ entities.json              实体，JSONL，LMS 字段
-   ├─ effects.json               效果，JSONL，扩展字段
-   ├─ all.json                   合并全部条目，JSONL，含 kind 字段
+   ├─ <namespace>_items.json     物品，JSONL，LMS 字段
+   ├─ <namespace>_entities.json  实体，JSONL，LMS 字段
+   ├─ <namespace>_effects.json   效果，JSONL，扩展字段
+   ├─ <namespace>_all.json       合并全部条目，JSONL，含 kind 字段
    └─ icons/<path>_32.png
       icons/<path>_128.png
 ```
