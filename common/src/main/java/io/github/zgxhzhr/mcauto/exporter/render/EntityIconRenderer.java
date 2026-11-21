@@ -13,6 +13,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
 
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 
 /**
@@ -50,6 +51,7 @@ public final class EntityIconRenderer {
             entity.setDeltaMovement(0.0, 0.0, 0.0);
             entity.setNoGravity(true);
             entity.tickCount = 20;
+            normalizeSpawnState(entity);
 
             float bbH = Math.max(entity.getBbHeight(), 0.2F);
             float bbW = Math.max(entity.getBbWidth(), 0.2F);
@@ -111,6 +113,25 @@ public final class EntityIconRenderer {
             return image;
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    /**
+     * 裸建实体（未经 spawn）时，部分模组的生物会停留在 spawn 动画首帧（模型埋在地下或被隐藏），
+     * 截出来是全透明。这里把常见的“已生成”开关置为 true，让模型回到待机姿态。
+     * 只调用模组自带的公开 setter，不做 Minecraft 内部字段反射。
+     */
+    private static void normalizeSpawnState(Entity entity) {
+        for (String name : new String[]{"setHasSpawned", "setSpawned"}) {
+            try {
+                Method setter = entity.getClass().getMethod(name, boolean.class);
+                setter.invoke(entity, true);
+                return;
+            } catch (NoSuchMethodException ignored) {
+                // 该实体没有这个开关，继续试下一个
+            } catch (Throwable ignored) {
+                // 调用失败不影响正常渲染
+            }
         }
     }
 
