@@ -2,6 +2,10 @@
 
 All files are JSON Lines: one object per line, UTF-8, no wrapping array.
 
+## Merged — `<namespace>_all.json`
+
+Every exported entry of the namespace in a single file: items first, then entities, then effects. Each line keeps the fields of its own file above and adds `kind` = `item` / `entity` / `effect`. The split files stay unchanged.
+
 ## Items — `<namespace>.json`
 
 | Field | Type | Notes |

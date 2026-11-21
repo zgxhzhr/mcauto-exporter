@@ -77,6 +77,10 @@ public final class RegistryScanner {
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
+                if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
+                    // 技术性实体（无中文也无英文名），不参与导出
+                    continue;
+                }
                 t.entityCategory = type.getCategory().name();
                 t.width = type.getDimensions().width();
                 t.height = type.getDimensions().height();

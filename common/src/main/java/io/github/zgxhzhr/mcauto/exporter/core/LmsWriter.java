@@ -20,6 +20,7 @@ import java.util.Map;
 
 /**
  * 输出 LMS 兼容 JSONL：物品 &lt;ns&gt;.json、实体 &lt;ns&gt;_entity.json；效果为本仓库扩展 &lt;ns&gt;_effect.json。
+ * 另外输出合并文件 &lt;ns&gt;_all.json，包含该命名空间下全部条目，每条附加 kind 字段（item / entity / effect）。
  */
 public final class LmsWriter {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -59,6 +60,30 @@ public final class LmsWriter {
                     .forEach(t -> lines.add(effectJson(t, includeIcons, neutralAs)));
             writeJsonl(root.resolve(entry.getKey() + "_effect.json"), lines);
         }
+        // 合并文件：物品 → 实体 → 效果依次排列，每条补 kind 字段
+        var namespaces = new java.util.TreeSet<String>();
+        namespaces.addAll(items.keySet());
+        namespaces.addAll(entities.keySet());
+        namespaces.addAll(effects.keySet());
+        for (String ns : namespaces) {
+            List<JsonObject> lines = new ArrayList<>();
+            for (Map<String, List<Target>> group : List.of(items, entities, effects)) {
+                group.getOrDefault(ns, List.of()).stream()
+                        .sorted(Comparator.comparing(t -> t.id.toString()))
+                        .forEach(t -> lines.add(mergedJson(t, includeIcons, neutralAs)));
+            }
+            writeJsonl(root.resolve(ns + "_all.json"), lines);
+        }
+    }
+
+    private static JsonObject mergedJson(Target t, boolean includeIcons, String neutralAs) {
+        JsonObject o = switch (t.kind) {
+            case ITEM -> itemJson(t, includeIcons);
+            case ENTITY -> entityJson(t, includeIcons);
+            case EFFECT -> effectJson(t, includeIcons, neutralAs);
+        };
+        o.addProperty("kind", t.kind.name().toLowerCase(java.util.Locale.ROOT));
+        return o;
     }
 
     private static JsonObject itemJson(Target t, boolean includeIcons) {

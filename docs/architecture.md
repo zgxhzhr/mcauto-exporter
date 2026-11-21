@@ -186,8 +186,9 @@ INIT
 `format: "lms"` 的含义：物品、实体与 LMS 的「按 mcmod 格式导出」逐字段一致；LMS 没有效果导出，效果文件是本仓库自己补的扩展，但字段命名尽量与实体文件同构，下游不用为它单独写一套解析。
 
 - 物品：`<namespace>.json`，JSONL，每条一个物品对象，按 `registerName` 排序；
-- 实体：`<namespace>_entity.json`，JSONL，字段与 LMS 的 `McAutoBridge` 完全一致；
+- 实体：`<namespace>_entity.json`，JSONL，字段与 LMS 的 `McAutoBridge` 完全一致；中英文名都为空的技​​术性实体（内部辅助实体等）不导出；
 - 效果：`<namespace>_effect.json`，JSONL，自定义字段，见下方；
+- 合并：`<namespace>_all.json`，JSONL，物品 → 实体 → 效果全部条目，每条附加 `kind`；
 - 图标：base64 内嵌在条目里，同时落一份 PNG 到 `_data/`，方便人看和补图。
 
 内部可以有 Java 记录类（`ItemRecord`、`EntityRecord`、`EffectRecord`）方便单测，但它不是对外契约；写盘时直接序列化成 LMS 字段或效果扩展字段。
@@ -289,6 +290,7 @@ Icon        → icon128
 ├─ <namespace>.json              物品，JSONL，LMS 字段
 ├─ <namespace>_entity.json       实体，JSONL，LMS 字段
 ├─ <namespace>_effect.json       效果，JSONL，本仓库扩展
+├─ <namespace>_all.json          合并全部条目，JSONL，含 kind
 ├─ _data/<namespace>/<path>.png  与 base64 对应的 PNG，方便目视
 ├─ _icons/<namespace>/<path>.png 人工覆盖图，LMS 同名约定
 ├─ manifest.json                 总清单（模组、哈希、耗时、数量、异常）
