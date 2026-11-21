@@ -10,9 +10,9 @@ MIT License。
 - 实体图标：128×128 离屏渲染，失败/空白会标记
 - 技术性实体（中英文名都缺失，如内部辅助实体）直接跳过，不写入 JSON
 - BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
-- 物品 `<ns>.json`、实体 `<ns>_entity.json` 与 LMS 字段一致
-- 效果 `<ns>_effect.json` 为本仓库扩展，字段见 `docs/lms-json.md`
-- 合并文件 `<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
+- 物品 `<ns>/items.json`、实体 `<ns>/entities.json` 与 LMS 字段一致
+- 效果 `<ns>/effects.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 合并文件 `<ns>/all.json` 包含该命名空间全部条目，每条附加 `kind`
 - 进度、日志、错误都在界面内显示
 
 ## 使用
@@ -27,9 +27,9 @@ MIT License。
 
 | 模式 | 行为 |
 |---|---|
-| 完整导出（JSON + 图标） | 渲染图标、写 `_data` PNG，并写出 JSON |
+| 完整导出（JSON + 图标） | 渲染图标、写 `<namespace>/icons` PNG，并写出 JSON |
 | 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
-| 只导出图标 | 只写 `_data` PNG，不写 JSON |
+| 只导出图标 | 只写 `<namespace>/icons` PNG，不写 JSON |
 | 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
 
 ### 输出
@@ -38,13 +38,14 @@ MIT License。
 
 ```text
 mcauto-export/
-├─ <namespace>.json              物品，JSONL，LMS 字段
-├─ <namespace>_entity.json       实体，JSONL，LMS 字段
-├─ <namespace>_effect.json       效果，JSONL，扩展字段
-├─ <namespace>_all.json          合并全部条目，JSONL，含 kind 字段
-├─ _data/<namespace>/<path>_32.png
-├─ _data/<namespace>/<path>_128.png
-└─ status.json
+├─ status.json
+└─ <namespace>/
+   ├─ items.json                 物品，JSONL，LMS 字段
+   ├─ entities.json              实体，JSONL，LMS 字段
+   ├─ effects.json               效果，JSONL，扩展字段
+   ├─ all.json                   合并全部条目，JSONL，含 kind 字段
+   └─ icons/<path>_32.png
+      icons/<path>_128.png
 ```
 
 ## 构建

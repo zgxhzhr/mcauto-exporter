@@ -2,11 +2,11 @@
 
 All files are JSON Lines: one object per line, UTF-8, no wrapping array.
 
-## Merged — `<namespace>_all.json`
+## Merged — `<namespace>/all.json`
 
 Every exported entry of the namespace in a single file: items first, then entities, then effects. Each line keeps the fields of its own file above and adds `kind` = `item` / `entity` / `effect`. The split files stay unchanged.
 
-## Items — `<namespace>.json`
+## Items — `<namespace>/items.json`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -21,7 +21,7 @@ Every exported entry of the namespace in a single file: items first, then entiti
 | `smallIcon` | string | base64 PNG 32×32; empty in JSON-only mode |
 | `largeIcon` | string | base64 PNG 128×128; empty in JSON-only mode |
 
-## Entities — `<namespace>_entity.json`
+## Entities — `<namespace>/entities.json`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -37,7 +37,7 @@ Every exported entry of the namespace in a single file: items first, then entiti
 | `suspectReason` | string | only when `suspect` |
 | `renderer` | string | renderer class, when known |
 
-## Effects — `<namespace>_effect.json` (this project's extension)
+## Effects — `<namespace>/effects.json` (this project's extension)
 
 | Field | Type | Notes |
 |---|---|---|

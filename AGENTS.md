@@ -12,8 +12,8 @@ Working interfaces:
 - Client command: `/mcauto` opens the exporter screen.
 - Output: `config/mcauto-exporter.json` → `outputDir`.
 - Machine-readable status: `<output>/status.json`.
-- Data: `<namespace>.json`, `<namespace>_entity.json`, `<namespace>_effect.json`, `<namespace>_all.json` (all entries, each with `kind`).
-- Icons: `<output>/_data/<namespace>/<path>_<size>.png`.
+- Data: `<namespace>/items.json`, `<namespace>/entities.json`, `<namespace>/effects.json`, `<namespace>/all.json` (all entries, each with `kind`).
+- Icons: `<output>/<namespace>/icons/<path>_<size>.png`.
 
 ## For automation
 

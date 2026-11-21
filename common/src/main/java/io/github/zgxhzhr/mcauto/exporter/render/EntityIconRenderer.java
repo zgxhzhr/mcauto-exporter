@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import org.joml.Matrix4f;
@@ -40,6 +41,7 @@ public final class EntityIconRenderer {
         }
         try {
             entity.setPos(0.0, 0.0, 0.0);
+            yaw = resolveYaw(entity, yaw);
             entity.setYRot(yaw);
             entity.setXRot(0.0F);
             entity.setYHeadRot(yaw);
@@ -73,7 +75,7 @@ public final class EntityIconRenderer {
                 if (box == null) {
                     return null;
                 }
-                boolean clipped = box[0] <= 0 || box[1] <= 0 || box[2] >= size - 1 || box[3] >= size - 1;
+                boolean clipped = box[0] <= 0 || box[1] <= 0 || box[2] >= size - 1;
                 float contentW = box[2] - box[0] + 1;
                 float contentH = box[3] - box[1] + 1;
                 float newScale;
@@ -133,6 +135,21 @@ public final class EntityIconRenderer {
                 // 调用失败不影响正常渲染
             }
         }
+    }
+
+    /**
+     * 原版模型（LivingEntityRenderer 系）正面朝 +Z，150° 会拍到背面；
+     * GeckoLib 等自定义渲染器的模型正面朝 -Z，沿用调用方给的角度。
+     */
+    private static float resolveYaw(Entity entity, float yaw) {
+        try {
+            if (Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity)
+                    instanceof LivingEntityRenderer<?, ?>) {
+                return 30.0F;
+            }
+        } catch (Throwable ignored) {
+        }
+        return yaw;
     }
 
     private static BufferedImage draw(Entity entity, int size, float yaw, float tx, float ty, float scale) {

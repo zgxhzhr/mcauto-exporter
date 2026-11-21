@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 输出 LMS 兼容 JSONL：物品 &lt;ns&gt;.json、实体 &lt;ns&gt;_entity.json；效果为本仓库扩展 &lt;ns&gt;_effect.json。
- * 另外输出合并文件 &lt;ns&gt;_all.json，包含该命名空间下全部条目，每条附加 kind 字段（item / entity / effect）。
+ * 按命名空间分目录输出 LMS 兼容 JSONL：&lt;ns&gt;/items.json、&lt;ns&gt;/entities.json。
+ * 效果为本仓库扩展，写入 &lt;ns&gt;/effects.json；另输出合并文件 &lt;ns&gt;/all.json，
+ * 包含该命名空间下全部条目，每条附加 kind 字段（item / entity / effect）。
  */
 public final class LmsWriter {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -44,21 +45,21 @@ public final class LmsWriter {
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
                     .forEach(t -> lines.add(itemJson(t, includeIcons)));
-            writeJsonl(root.resolve(entry.getKey() + ".json"), lines);
+            writeJsonl(root.resolve(entry.getKey()).resolve("items.json"), lines);
         }
         for (var entry : entities.entrySet()) {
             List<JsonObject> lines = new ArrayList<>();
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
                     .forEach(t -> lines.add(entityJson(t, includeIcons)));
-            writeJsonl(root.resolve(entry.getKey() + "_entity.json"), lines);
+            writeJsonl(root.resolve(entry.getKey()).resolve("entities.json"), lines);
         }
         for (var entry : effects.entrySet()) {
             List<JsonObject> lines = new ArrayList<>();
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
                     .forEach(t -> lines.add(effectJson(t, includeIcons, neutralAs)));
-            writeJsonl(root.resolve(entry.getKey() + "_effect.json"), lines);
+            writeJsonl(root.resolve(entry.getKey()).resolve("effects.json"), lines);
         }
         // 合并文件：物品 → 实体 → 效果依次排列，每条补 kind 字段
         var namespaces = new java.util.TreeSet<String>();
@@ -72,7 +73,7 @@ public final class LmsWriter {
                         .sorted(Comparator.comparing(t -> t.id.toString()))
                         .forEach(t -> lines.add(mergedJson(t, includeIcons, neutralAs)));
             }
-            writeJsonl(root.resolve(ns + "_all.json"), lines);
+            writeJsonl(root.resolve(ns).resolve("all.json"), lines);
         }
     }
 

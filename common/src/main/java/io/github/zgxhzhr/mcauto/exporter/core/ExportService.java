@@ -187,7 +187,7 @@ public final class ExportService {
 
     private void writePng(Target target, int size, BufferedImage image) {
         try {
-            Path dir = output.resolve("_data").resolve(target.namespace());
+            Path dir = output.resolve(target.namespace()).resolve("icons");
             Files.createDirectories(dir);
             Path file = dir.resolve(target.path() + "_" + size + ".png");
             Files.write(file, ImageUtil.png(image));

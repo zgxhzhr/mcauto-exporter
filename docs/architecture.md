@@ -26,7 +26,7 @@ mcauto-exporter 的定位：
 2. **人类能用**：游戏内命令 + 简单界面，选命名空间、勾类型、看进度；
 3. **agent 能用**：一个 job 文件进，一个 status/events/manifest 出，哨兵文件与退出码稳定；
 4. **MIT**：核心与渲染原创；ZHR_SuperDBG 的图标导出逻辑为自有代码，确认可按 MIT 重新授权；LMS / IRR 只做行为与 API 参考，不复制代码；
-5. **JSON 直接沿用 LMS**：物品 `<ns>.json`、实体 `<ns>_entity.json` 的字段与 JSONL 形状不改，现有下游脚本不用换解析；
+5. **JSON 直接沿用 LMS**：物品 `<ns>/items.json`、实体 `<ns>/entities.json` 的字段与 JSONL 形状不改，现有下游脚本只需换目录；
 6. **图标以游戏内结果为准**：物品/方块/实体走真实渲染，BUFF/DEBUFF 走原始贴图逐像素导出，避免「放大模糊」。
 
 非目标：不做服务端导出、不做自动上传百科、不做页面正文生成、不做通用调试器。
@@ -51,9 +51,9 @@ mcauto-exporter 的定位：
 │  scan/                               writer/                                    ▼            │
 │  ┌──────────────────────┐         ┌──────────────────────────┐       ┌───────────────────┐  │
 │  │ ItemScanner          │         │ LmsJsonWriter            │       │ OffscreenFbo      │  │
-│  │ BlockItemScanner     │────────▶│  <ns>.json               │       │ 32 / 128 PNG      │  │
-│  │ EntityScanner        │         │  <ns>_entity.json        │       │ 原子落盘           │  │
-│  │ EffectScanner        │         │  <ns>_effect.json        │       │ overrides         │  │
+│  │ BlockItemScanner     │────────▶│  <ns>/items.json         │       │ 32 / 128 PNG      │  │
+│  │ EntityScanner        │         │  <ns>/entities.json      │       │ 原子落盘           │  │
+│  │ EffectScanner        │         │  <ns>/effects.json       │       │ overrides         │  │
 │  │ LanguageIndex        │         │ manifest / status        │       └───────────────────┘  │
 │  └──────────────────────┘         └──────────────────────────┘                              │
 │                                                                                             │
@@ -185,15 +185,15 @@ INIT
 
 `format: "lms"` 的含义：物品、实体与 LMS 的「按 mcmod 格式导出」逐字段一致；LMS 没有效果导出，效果文件是本仓库自己补的扩展，但字段命名尽量与实体文件同构，下游不用为它单独写一套解析。
 
-- 物品：`<namespace>.json`，JSONL，每条一个物品对象，按 `registerName` 排序；
-- 实体：`<namespace>_entity.json`，JSONL，字段与 LMS 的 `McAutoBridge` 完全一致；中英文名都为空的技​​术性实体（内部辅助实体等）不导出；
-- 效果：`<namespace>_effect.json`，JSONL，自定义字段，见下方；
-- 合并：`<namespace>_all.json`，JSONL，物品 → 实体 → 效果全部条目，每条附加 `kind`；
-- 图标：base64 内嵌在条目里，同时落一份 PNG 到 `_data/`，方便人看和补图。
+- 物品：`<namespace>/items.json`，JSONL，每条一个物品对象，按 `registerName` 排序；
+- 实体：`<namespace>/entities.json`，JSONL，字段与 LMS 的 `McAutoBridge` 完全一致；中英文名都为空的技​​术性实体（内部辅助实体等）不导出；
+- 效果：`<namespace>/effects.json`，JSONL，自定义字段，见下方；
+- 合并：`<namespace>/all.json`，JSONL，物品 → 实体 → 效果全部条目，每条附加 `kind`；
+- 图标：base64 内嵌在条目里，同时落一份 PNG 到 `<namespace>/icons/`，方便人看和补图。
 
 内部可以有 Java 记录类（`ItemRecord`、`EntityRecord`、`EffectRecord`）方便单测，但它不是对外契约；写盘时直接序列化成 LMS 字段或效果扩展字段。
 
-#### 物品 `<namespace>.json`
+#### 物品 `<namespace>/items.json`
 
 字段与 LMS `itemDataMcMod` 一致：
 
@@ -206,7 +206,7 @@ INIT
 - `CreativeTabName` 取物品所在创造标签页的显示名，找不到写 `未知`；
 - `smallIcon` / `largeIcon` 分别来自 32 / 128 渲染结果，不从 32 放大到 128。
 
-#### 实体 `<namespace>_entity.json`
+#### 实体 `<namespace>/entities.json`
 
 字段与 LMS 的 `McAutoBridge` 一致：
 
@@ -219,7 +219,7 @@ INIT
 - 可疑时带 `suspect: true`、`suspectReason`；
 - `iconSource` 取 `render` / `override` / `cache`。
 
-#### 效果 `<namespace>_effect.json`（本仓库扩展）
+#### 效果 `<namespace>/effects.json`（本仓库扩展）
 
 LMS 没有效果导出。这里不发明一套完全独立的格式，而是借实体文件的形状：`Icon` / `IconSmall` / `Englishname` 三个命名保持一致，新增效果专属字段。设计目标是「站点导入时只做改名，不做语义判断」。
 
@@ -287,15 +287,13 @@ Icon        → icon128
 
 ```text
 <output>/
-├─ <namespace>.json              物品，JSONL，LMS 字段
-├─ <namespace>_entity.json       实体，JSONL，LMS 字段
-├─ <namespace>_effect.json       效果，JSONL，本仓库扩展
-├─ <namespace>_all.json          合并全部条目，JSONL，含 kind
-├─ _data/<namespace>/<path>.png  与 base64 对应的 PNG，方便目视
-├─ _icons/<namespace>/<path>.png 人工覆盖图，LMS 同名约定
-├─ manifest.json                 总清单（模组、哈希、耗时、数量、异常）
 ├─ status.json                   最后一次状态（人看也行，agent 必读）
-└─ events.jsonl                  全过程事件流
+└─ <namespace>/
+   ├─ items.json                 物品，JSONL，LMS 字段
+   ├─ entities.json              实体，JSONL，LMS 字段
+   ├─ effects.json               效果，JSONL，本仓库扩展
+   ├─ all.json                   合并全部条目，JSONL，含 kind
+   └─ icons/<path>_<size>.png    与 base64 对应的 PNG，方便目视
 ```
 
 落盘规则：先写 `<file>.tmp`，`fsync` 后原子重命名；同目录写入互不覆盖；中断后不留下半截 JSON。
@@ -341,9 +339,9 @@ v0.1 已实现一个足够详细的单页界面，不做多层菜单：
 
 一个按钮循环切换三种整批模式：
 
-1. 完整导出（JSON + 图标）：渲染并写 `_data` PNG，最后写 LMS JSON；
+1. 完整导出（JSON + 图标）：渲染并写 `<namespace>/icons` PNG，最后写 LMS JSON；
 2. 只导出 JSON：不渲染，`smallIcon` / `largeIcon` 等字段为空；
-3. 只导出图标：只写 `_data` PNG，不写 JSON。
+3. 只导出图标：只写 `<namespace>/icons` PNG，不写 JSON。
 
 **右中：类型与尺寸**
 
@@ -580,7 +578,7 @@ v2 再考虑：1.20.1 Fabric、1.21.1 NeoForge 的 platform 子模块。
 
 已确认：
 
-- 物品、实体沿用 LMS，逐字段一致；效果用本仓库自定义的 `<ns>_effect.json`，字段见 §5.1。
+- 物品、实体沿用 LMS，逐字段一致；效果用本仓库自定义的 `<ns>/effects.json`，字段见 §5.1。
 - SuperDBG 的图标导出逻辑为自有代码，按 MIT 重新授权；1.21.1 需要按 Fabric API 重写，但不再有许可障碍。
 
 剩余待定：

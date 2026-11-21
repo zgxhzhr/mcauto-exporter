@@ -125,7 +125,7 @@ public final class TargetPickerScreen extends Screen {
         graphics.renderOutline(listX, listY, listW, listH, 0x558B5A2B);
         renderRows(graphics, font, mouseX, mouseY);
 
-        String hint = "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出该条图标（只写 _data 下的 PNG）";
+        String hint = "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出该条图标（只写该命名空间目录下的 PNG）";
         graphics.drawString(font, McAutoStyle.clamp(font, hint, contentRight - contentLeft - 90),
                 contentLeft, messageY, McAutoStyle.SUBTEXT_COLOR, false);
         if (!message.isEmpty()) {
