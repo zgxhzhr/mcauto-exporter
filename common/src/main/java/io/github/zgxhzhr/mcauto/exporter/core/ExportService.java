@@ -98,6 +98,7 @@ public final class ExportService {
         if (req.mode == ExportMode.JSON_ONLY) {
             try {
                 LmsWriter.write(output, targets, false, ExporterConfig.get().effectNeutral);
+                PreviewWriter.write(output, targets);
                 finish("仅 JSON 导出完成");
             } catch (IOException e) {
                 fail("写 JSON 失败：" + e.getMessage());
@@ -200,6 +201,7 @@ public final class ExportService {
         try {
             if (request.mode == ExportMode.FULL) {
                 LmsWriter.write(output, targets, true, ExporterConfig.get().effectNeutral);
+                PreviewWriter.write(output, targets);
             }
             writeStatus("DONE", message);
             int success = Math.max(0, targets.size() - failed - noVisual);

@@ -13,6 +13,7 @@ MIT License。
 - 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
 - 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见 `docs/lms-json.md`
 - 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
+- 预览页 `<ns>/preview.html`：单文件、图标内嵌，可筛选/搜索，点卡片复制注册名
 - 进度、日志、错误都在界面内显示
 
 ## 使用
@@ -44,6 +45,7 @@ mcauto-export/
    ├─ <namespace>_entities.json  实体，JSONL，LMS 字段
    ├─ <namespace>_effects.json   效果，JSONL，扩展字段
    ├─ <namespace>_all.json       合并全部条目，JSONL，含 kind 字段
+   ├─ preview.html               单文件预览页，图标内嵌
    └─ icons/<path>_32.png
       icons/<path>_128.png
 ```

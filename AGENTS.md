@@ -13,6 +13,7 @@ Working interfaces:
 - Output: `config/mcauto-exporter.json` → `outputDir`.
 - Machine-readable status: `<output>/status.json`.
 - Data: `<namespace>/<namespace>_items.json`, `<namespace>/<namespace>_entities.json`, `<namespace>/<namespace>_effects.json`, `<namespace>/<namespace>_all.json` (all entries, each with `kind`).
+- Human preview: `<output>/<namespace>/preview.html` (self-contained, icons inlined).
 - Icons: `<output>/<namespace>/icons/<path>_<size>.png`.
 
 ## For automation
