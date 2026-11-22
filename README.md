@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **1.21.1 / Fabric** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **1.21.1 / Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -18,7 +18,7 @@ MIT License。
 
 ## 使用
 
-1. 把 jar 放进 `mods/`，需要 Fabric API。
+1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，NeoForge 端无需额外前置。
 2. 进入一个世界。
 3. 输入 `/meowarchive` 或按界面打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
@@ -52,34 +52,37 @@ meowarchive-export/
 
 ## 构建
 
-需要 JDK 21。仓库采用 MultiLoader 结构，目前只实现 Fabric 客户端。
+需要 JDK 21。仓库采用 MultiLoader 结构，已实现 Fabric 与 NeoForge 客户端。
 
 ```bash
 ./gradlew :fabric:build
+./gradlew :neoforge:build
 ```
 
-产物在 `fabric/build/libs/`。
+产物分别在 `fabric/build/libs/` 与 `neoforge/build/libs/`。
 
 开发客户端：
 
 ```bash
 ./gradlew :fabric:runClient
+./gradlew :neoforge:runClient
 ```
 
 ## 项目结构
 
 ```text
-common/   与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
-fabric/   Fabric 入口、命令、平台服务实现
-docs/     LMS 字段说明与架构设计
+common/     与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/     Fabric 入口、命令、平台服务实现
+neoforge/   NeoForge 入口、命令、平台服务实现
+docs/       LMS 字段说明与架构设计
 ```
 
-Forge / NeoForge 尚未移植，需要时从模板恢复对应模块。
+Forge 尚未移植，需要时从模板恢复对应模块。
 
 
 ## 已知限制
 
-- 只支持 1.21.1 Fabric。
+- 支持 1.21.1 的 Fabric 与 NeoForge 客户端，Forge 未移植。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
 - 配方、附魔暂不导出。

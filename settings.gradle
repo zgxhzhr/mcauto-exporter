@@ -47,5 +47,4 @@ plugins {
 rootProject.name = 'meowarchive'
 include('common')
 include('fabric')
-// Forge / NeoForge 尚未移植：本模组目前只实现 Fabric 客户端。
-// 需要时从 origin/1.21.1 的模板恢复对应目录，并在 settings.gradle 中重新 include。
+include('neoforge')

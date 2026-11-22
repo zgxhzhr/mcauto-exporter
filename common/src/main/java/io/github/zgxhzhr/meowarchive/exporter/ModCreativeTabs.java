@@ -21,12 +21,15 @@ public final class ModCreativeTabs {
     private ModCreativeTabs() {
     }
 
-    public static void register() {
-        Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, MAIN,
-                CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
+    public static CreativeModeTab create() {
+        return CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
                 .title(Component.translatable("itemGroup.meowarchive.main"))
                 .icon(() -> new ItemStack(ModItems.MIAO_WU_JI))
                 .displayItems((parameters, output) -> output.accept(ModItems.MIAO_WU_JI))
-                .build());
+                .build();
+    }
+
+    public static void register() {
+        Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, MAIN, create());
     }
 }
