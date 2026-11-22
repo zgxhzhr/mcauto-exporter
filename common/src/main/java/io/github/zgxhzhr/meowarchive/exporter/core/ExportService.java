@@ -2,6 +2,7 @@ package io.github.zgxhzhr.meowarchive.exporter.core;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
@@ -22,7 +23,9 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 导出编排：扫描 → 每帧渲染一个目标 → 落 PNG → 写 LMS JSON。
@@ -36,9 +39,9 @@ public final class ExportService {
     private ExportRequest request;
     private List<Target> targets = new ArrayList<>();
     private int index;
-    private int failed;
-    private int noVisual;
-    private int suspect;
+    private final Map<String, String> failures = new LinkedHashMap<>();
+    private final Map<String, String> noVisualTargets = new LinkedHashMap<>();
+    private final Map<String, String> suspectTargets = new LinkedHashMap<>();
     private String error = "";
     private String currentLabel = "";
     private String lastResult = "";
@@ -80,9 +83,9 @@ public final class ExportService {
         request = req;
         running = true;
         index = 0;
-        failed = 0;
-        noVisual = 0;
-        suspect = 0;
+        failures.clear();
+        noVisualTargets.clear();
+        suspectTargets.clear();
         error = "";
         lastResult = "";
         startedAt = System.currentTimeMillis();
@@ -140,7 +143,9 @@ public final class ExportService {
                 target.suspect = true;
                 target.suspectReason = "sprite-upscale-blur";
             }
-            suspect += target.suspect ? 1 : 0;
+            if (target.suspect) {
+                suspectTargets.put(target.id.toString(), target.suspectReason);
+            }
         }
         if (target.kind == Target.Kind.ENTITY) {
             if (!target.icons.containsKey(128)) {
@@ -153,18 +158,18 @@ public final class ExportService {
             }
             if (!target.icons.containsKey(128)) {
                 target.noVisual = true;
-                noVisual++;
+                noVisualTargets.put(target.id.toString(), "离屏渲染为空");
             } else {
                 int colors = ImageUtil.colorCount(target.icons.get(128));
                 if (colors <= 2) {
                     target.suspect = true;
                     target.suspectReason = "flat-color";
-                    suspect++;
+                    suspectTargets.put(target.id.toString(), target.suspectReason);
                 }
             }
         }
         if (!any && target.kind == Target.Kind.ITEM) {
-            failed++;
+            failures.put(target.id.toString(), "渲染为空");
             log.add("渲染为空：" + target.id);
             ExporterLog.LOG.warn("渲染为空：{}", target.id);
         }
@@ -186,14 +191,17 @@ public final class ExportService {
         return running && index >= targets.size();
     }
 
-    private void writePng(Target target, int size, BufferedImage image) {
+    private boolean writePng(Target target, int size, BufferedImage image) {
         try {
             Path dir = output.resolve(target.namespace()).resolve("icons");
             Files.createDirectories(dir);
             Path file = dir.resolve(target.path() + "_" + size + ".png");
             Files.write(file, ImageUtil.png(image));
+            return true;
         } catch (IOException e) {
+            failures.putIfAbsent(target.id.toString(), "写图失败：" + e.getMessage());
             log.add("写图失败：" + target.id + "：" + e.getMessage());
+            return false;
         }
     }
 
@@ -203,11 +211,16 @@ public final class ExportService {
                 LmsWriter.write(output, targets, true, ExporterConfig.get().effectNeutral);
                 PreviewWriter.write(output, targets);
             }
+            writeFailureReport();
             writeStatus("DONE", message);
-            int success = Math.max(0, targets.size() - failed - noVisual);
-            lastResult = message + " · 成功 " + success + "，失败 " + failed
-                    + (noVisual > 0 ? "，无可见模型 " + noVisual : "")
-                    + (suspect > 0 ? "，可疑 " + suspect : "");
+            int success = Math.max(0, targets.size() - failures.size() - noVisualTargets.size());
+            lastResult = message + " · 成功 " + success + "，失败 " + failures.size()
+                    + (noVisualTargets.isEmpty() ? "" : "，无可见模型 " + noVisualTargets.size())
+                    + (suspectTargets.isEmpty() ? "" : "，可疑 " + suspectTargets.size());
+            if (!failures.isEmpty()) {
+                lastResult += "（" + sampleIds(failures)
+                        + (failures.size() > 3 ? "，见 failures.txt" : "") + "）";
+            }
             log.add(lastResult);
         } catch (IOException e) {
             fail("写 JSON 失败：" + e.getMessage());
@@ -234,13 +247,56 @@ public final class ExportService {
         o.addProperty("state", state);
         o.addProperty("message", message);
         o.addProperty("total", targets.size());
-        o.addProperty("failed", failed);
-        o.addProperty("noVisual", noVisual);
-        o.addProperty("suspect", suspect);
+        o.addProperty("failed", failures.size());
+        o.addProperty("noVisual", noVisualTargets.size());
+        o.addProperty("suspect", suspectTargets.size());
+        o.add("failedEntries", entriesArray(failures));
+        o.add("noVisualEntries", entriesArray(noVisualTargets));
+        o.add("suspectEntries", entriesArray(suspectTargets));
+        o.addProperty("failureReport", "failures.txt");
         o.addProperty("output", output.toString());
         o.addProperty("startedAt", Instant.ofEpochMilli(startedAt).toString());
         o.addProperty("updatedAt", Instant.now().toString());
         Files.writeString(output.resolve("status.json"), GSON.toJson(o), StandardCharsets.UTF_8);
+    }
+
+    /** 每个条目一行：注册名 \t 原因；分失败 / 无可见模型 / 可疑三段。 */
+    private void writeFailureReport() throws IOException {
+        if (failures.isEmpty() && noVisualTargets.isEmpty() && suspectTargets.isEmpty()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        appendSection(sb, "失败", failures);
+        appendSection(sb, "无可见模型", noVisualTargets);
+        appendSection(sb, "可疑", suspectTargets);
+        Files.writeString(output.resolve("failures.txt"), sb.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void appendSection(StringBuilder sb, String title, Map<String, String> entries) {
+        if (entries.isEmpty()) {
+            return;
+        }
+        sb.append("# ").append(title).append('\n');
+        entries.forEach((id, reason) -> sb.append(id).append('\t').append(reason).append('\n'));
+        sb.append('\n');
+    }
+
+    private static JsonArray entriesArray(Map<String, String> entries) {
+        JsonArray array = new JsonArray();
+        entries.forEach((id, reason) -> {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("id", id);
+            entry.addProperty("reason", reason);
+            array.add(entry);
+        });
+        return array;
+    }
+
+    private static String sampleIds(Map<String, String> entries) {
+        List<String> ids = new ArrayList<>(entries.keySet());
+        int shown = Math.min(3, ids.size());
+        String sample = String.join("、", ids.subList(0, shown));
+        return ids.size() > shown ? sample + " 等" : sample;
     }
 
     private static String displayName(Target target) {
@@ -274,15 +330,15 @@ public final class ExportService {
     }
 
     public int failed() {
-        return failed;
+        return failures.size();
     }
 
     public int noVisual() {
-        return noVisual;
+        return noVisualTargets.size();
     }
 
     public int suspect() {
-        return suspect;
+        return suspectTargets.size();
     }
 
     public Path output() {
