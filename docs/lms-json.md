@@ -10,7 +10,7 @@ Every exported entry of the namespace in a single file: items first, then entiti
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `zh_cn`; empty if missing |
+| `name` | string | `zh_cn`，缺失时回退 `en_us`；英文名在 `englishName` |
 | `englishName` | string | `en_us` |
 | `registerName` | string | `namespace:path` |
 | `type` | string | `Block` or `Item` |
@@ -25,7 +25,7 @@ Every exported entry of the namespace in a single file: items first, then entiti
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `zh_cn` |
+| `name` | string | `zh_cn`，缺失时回退 `en_us` |
 | `Englishname` | string | capital `E`, same as LMS |
 | `mod` | string | namespace |
 | `registerName` | string | `namespace:path` |
@@ -41,7 +41,7 @@ Every exported entry of the namespace in a single file: items first, then entiti
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `zh_cn`; empty if missing |
+| `name` | string | `zh_cn`，缺失时回退 `en_us`；都没有写空串 |
 | `Englishname` | string | `en_us` |
 | `mod` | string | namespace |
 | `registerName` | string | `namespace:path` |

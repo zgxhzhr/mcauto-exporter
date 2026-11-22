@@ -89,7 +89,7 @@ public final class LmsWriter {
 
     private static JsonObject itemJson(Target t, boolean includeIcons) {
         JsonObject o = new JsonObject();
-        o.addProperty("name", t.nameZh);
+        o.addProperty("name", displayName(t));
         o.addProperty("englishName", t.nameEn);
         o.addProperty("registerName", t.id.toString());
         o.addProperty("type", t.stack.getItem() instanceof BlockItem ? "Block" : "Item");
@@ -104,7 +104,7 @@ public final class LmsWriter {
 
     private static JsonObject entityJson(Target t, boolean includeIcons) {
         JsonObject o = new JsonObject();
-        o.addProperty("name", t.nameZh);
+        o.addProperty("name", displayName(t));
         o.addProperty("Englishname", t.nameEn);
         o.addProperty("mod", t.namespace());
         o.addProperty("registerName", t.id.toString());
@@ -124,7 +124,7 @@ public final class LmsWriter {
 
     private static JsonObject effectJson(Target t, boolean includeIcons, String neutralAs) {
         JsonObject o = new JsonObject();
-        o.addProperty("name", t.nameZh);
+        o.addProperty("name", displayName(t));
         o.addProperty("Englishname", t.nameEn);
         o.addProperty("mod", t.namespace());
         o.addProperty("registerName", t.id.toString());
@@ -147,6 +147,11 @@ public final class LmsWriter {
         o.addProperty("nameSource", !t.nameZh.isEmpty() ? "zh_cn" : (!t.nameEn.isEmpty() ? "en_us" : "none"));
         o.add("warnings", new JsonArray());
         return o;
+    }
+
+    /** 优先中文名，缺失时回退英文名，避免只有 en_us 的模组导出空 name。 */
+    private static String displayName(Target t) {
+        return t.nameZh.isEmpty() ? t.nameEn : t.nameZh;
     }
 
     private static String base64(Target t, int size, boolean includeIcons) {

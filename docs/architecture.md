@@ -248,7 +248,7 @@ LMS 没有效果导出。这里不发明一套完全独立的格式，而是借�
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `name` | string | 是 | `zh_cn` 名称；没有中文时写空串，不拿英文顶替 |
+| `name` | string | 是 | `zh_cn` 名称；缺失时回退 `en_us`，都没有写空串 |
 | `Englishname` | string | 是 | `en_us` 名称；与实体文件一致，`E` 大写 |
 | `mod` | string | 是 | 命名空间 |
 | `registerName` | string | 是 | `namespace:path` |
