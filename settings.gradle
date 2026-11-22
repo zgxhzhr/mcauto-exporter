@@ -44,7 +44,7 @@ plugins {
 }
 
 // This should match the folder name of the project, or else IDEA may complain (see https://youtrack.jetbrains.com/issue/IDEA-317606)
-rootProject.name = 'mcauto-exporter'
+rootProject.name = 'meowarchive'
 include('common')
 include('fabric')
 // Forge / NeoForge 尚未移植：本模组目前只实现 Fabric 客户端。

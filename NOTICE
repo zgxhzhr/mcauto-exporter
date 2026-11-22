@@ -1,10 +1,10 @@
-mcauto-exporter
+Meow Archive Exporter
 Copyright (c) 2026 zgxhzhr
 
 This project is licensed under the MIT License.
 
 Bundled assets:
-- common/src/main/resources/assets/mcauto_exporter/textures/item/miao_wu_ji.png
+- common/src/main/resources/assets/meowarchive/textures/item/miao_wu_ji.png
   Original artwork contributed by the project author; distributed with this
   repository under the MIT License.
 

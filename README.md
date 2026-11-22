@@ -1,4 +1,4 @@
-# mcauto exporter
+# Meow Archive Exporter
 
 Minecraft **1.21.1 / Fabric** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
@@ -20,7 +20,7 @@ MIT License。
 
 1. 把 jar 放进 `mods/`，需要 Fabric API。
 2. 进入一个世界。
-3. 输入 `/mcauto` 或按界面打开导出器。
+3. 输入 `/meowarchive` 或按界面打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
 5. 点「开始导出」。
 
@@ -35,10 +35,10 @@ MIT License。
 
 ### 输出
 
-默认在 `.minecraft/mcauto-export/`，可在 `config/mcauto-exporter.json` 改 `outputDir`。
+默认在 `.minecraft/meowarchive-export/`，可在 `config/meowarchive.json` 改 `outputDir`。
 
 ```text
-mcauto-export/
+meowarchive-export/
 ├─ status.json
 └─ <namespace>/
    ├─ <namespace>_items.json     物品，JSONL，LMS 字段
@@ -87,7 +87,7 @@ Forge / NeoForge 尚未移植，需要时从模板恢复对应模块。
 ## 许可
 
 - 本仓库代码：MIT。
-- 物品贴图 `assets/mcauto_exporter/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
+- 物品贴图 `assets/meowarchive/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
 - 图标导出的「一帧一个 + GUI 阶段离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
 - LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
 - Fabric API 为运行时依赖，不打包。

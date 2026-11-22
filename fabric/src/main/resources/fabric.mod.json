@@ -8,17 +8,17 @@
         "${mod_author}"
     ],
     "contact": {
-        "homepage": "https://github.com/zgxhzhr/mcauto-exporter",
-        "sources": "https://github.com/zgxhzhr/mcauto-exporter"
+        "homepage": "https://github.com/zgxhzhr/meowarchive",
+        "sources": "https://github.com/zgxhzhr/meowarchive"
     },
     "license": "${license}",
     "environment": "client",
     "entrypoints": {
         "main": [
-            "io.github.zgxhzhr.mcauto.exporter.McAutoExporter"
+            "io.github.zgxhzhr.meowarchive.exporter.MeowArchiveExporter"
         ],
         "client": [
-            "io.github.zgxhzhr.mcauto.exporter.McAutoExporter"
+            "io.github.zgxhzhr.meowarchive.exporter.MeowArchiveExporter"
         ]
     },
     "depends": {

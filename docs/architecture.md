@@ -1,8 +1,8 @@
-# mcauto-exporter 架构与功能设计
+# Meow Archive Exporter 架构与功能设计
 
 > 目标版本：Minecraft 1.21.1 / Fabric
 > 许可证：MIT（仅覆盖本仓库原创代码）
-> 仓库：https://github.com/zgxhzhr/mcauto-exporter
+> 仓库：https://github.com/zgxhzhr/meowarchive
 > 状态：设计稿，先不写代码
 
 ---
@@ -20,7 +20,7 @@
 
 所以 1.21.1 Fabric 这一格是空的，而且现有实现要么是 copyleft，要么把「人用」和「agent 用」做成了两套东西。
 
-mcauto-exporter 的定位：
+Meow Archive Exporter 的定位：
 
 1. **一个客户端模组**，不依赖外部 Java agent、不反射游戏类；
 2. **人类能用**：游戏内命令 + 简单界面，选命名空间、勾类型、看进度；
@@ -36,14 +36,14 @@ mcauto-exporter 的定位：
 ## 2. 总体架构
 
 ```text
-┌──────────────────────────── mcauto-exporter (Fabric client mod) ────────────────────────────┐
+┌────────────────────── Meow Archive Exporter (Fabric client mod) ──────────────────────┐
 │                                                                                             │
 │  control/                          core/                              render/                │
 │  ┌──────────────────────┐         ┌──────────────────────────┐       ┌───────────────────┐  │
 │  │ JobLoader            │         │ ExportJob / ExportPlan   │       │ RenderScheduler   │  │
-│  │  -Dmcauto.job        │────────▶│ ExportState (状态机)      │──────▶│ 每帧一个 target    │  │
+│  │  -Dmeowarchive.job       │────────▶│ ExportState (状态机)      │──────▶│ 每帧一个 target    │  │
 │  │ config/*.json        │         │ EventLog / StatusWriter  │       │ ItemRendererPort  │  │
-│  │ /mcauto 命令          │         │ Sentinel / ExitCode      │       │ EntityRendererPort│  │
+│  │ /meowarchive 命令         │         │ Sentinel / ExitCode      │       │ EntityRendererPort│  │
 │  │ GUI Screen           │         │ TargetDeduper / Cache    │       │ SpriteExtractor   │  │
 │  └──────────────────────┘         └──────────────────────────┘       │ QualityProbe      │  │
 │             │                                ▲                       └─────────┬─────────┘  │
@@ -73,7 +73,7 @@ mcauto-exporter 的定位：
 建议的 Gradle 结构：
 
 ```text
-mcauto-exporter/
+meowarchive/
 ├─ LICENSE                     MIT
 ├─ NOTICE                      第三方依赖与行为参考声明
 ├─ README.md                   人类使用
@@ -307,16 +307,16 @@ Icon        → icon128
 v0.1 已实现：
 
 ```text
-/mcauto            打开导出界面
+/meowarchive            打开导出界面
 ```
 
 后续补齐：
 
 ```text
-/mcauto export <namespace> [items] [entities] [effects] [sizes=32,128]
-/mcauto cancel
-/mcauto status
-/mcauto open
+/meowarchive export <namespace> [items] [entities] [effects] [sizes=32,128]
+/meowarchive cancel
+/meowarchive status
+/meowarchive open
 ```
 
 - 客户端命令，走 Fabric 的客户端命令注册，不影响服务器；
@@ -375,11 +375,11 @@ v0.1 已实现一个足够详细的单页界面，不做多层菜单：
 
 ### 6.3 配置
 
-`config/mcauto-exporter.json`，命令行/gui/job 的优先级：job > 命令 > gui > 配置文件 > 默认值。
+`config/meowarchive.json`，命令行/gui/job 的优先级：job > 命令 > gui > 配置文件 > 默认值。
 
 ```json
 {
-  "outputDir": "mcauto-export",
+  "outputDir": "meowarchive-export",
   "sizes": [32, 128],
   "languages": ["zh_cn", "en_us"],
   "targets": ["items", "blocks", "entities", "effects"],
@@ -427,7 +427,7 @@ v0.1 已实现一个足够详细的单页界面，不做多层菜单：
 }
 ```
 
-启动方式：JVM 参数 `-Dmcauto.job=<绝对路径>`。没有 job 时模组什么都不做，当普通模组加载。
+启动方式：JVM 参数 `-Dmeowarchive.job=<绝对路径>`。没有 job 时模组什么都不做，当普通模组加载。
 
 ### 7.3 状态与事件
 
@@ -530,14 +530,14 @@ v0.1 已实现一个足够详细的单页界面，不做多层菜单：
 
 ### 11.2 集成测试（本机 GPU）
 
-- `runClient` + `-Dmcauto.job=fixtures/job-effects.json`；
+- `runClient` + `-Dmeowarchive.job=fixtures/job-effects.json`；
 - 固定样本：16×16 效果贴图 12 张，断言 128 图颜色数等于原图；
 - 固定样本：BlockItem、平面物品、3D 物品、实体各 1 个，做感知哈希对比；
 - 固定样本：缺失贴图、全透明实体、扁平实体，断言 `suspect` / `noVisual` 正确。
 
 ### 11.3 验收口径
 
-1. 人类：进世界，`/mcauto export <ns>`，看到进度，完成后能直接拿站方 JSON；
+1. 人类：进世界，`/meowarchive export <ns>`，看到进度，完成后能直接拿站方 JSON；
 2. agent：起客户端 → 等 `_mcauto_done` → 读 `status.json` → 产物齐全 → 退出码 0；
 3. 效果图：颜色数与原图一致，无平滑过渡；
 4. 方块：立体图标；实体：128 渲染图；无图实体明确标记；
@@ -585,5 +585,5 @@ v2 再考虑：1.20.1 Fabric、1.21.1 NeoForge 的 platform 子模块。
 
 1. **版本范围**：v1 只做 1.21.1 Fabric，还是同时铺 1.20.1 Fabric？建议只做 1.21.1，先把契约和回归打稳。
 2. **效果图标默认策略**：建议所有效果一律 sprite 原图，不做渲染；这样从根上避免模糊。
-3. **默认输出目录**：建议 `.mcauto/`（游戏目录下），agent 用 job 覆盖。
+3. **默认输出目录**：建议 `.meowarchive/`（游戏目录下），agent 用 job 覆盖。
 4. **v1 是否要配方导出**：建议不做，配方继续由现有脚本从 jar 解析；导出器专注图标与注册数据。
