@@ -1,6 +1,7 @@
 package io.github.zgxhzhr.meowarchive.exporter.core;
 
-import com.google.gson.JsonArray;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import net.minecraft.world.item.BlockItem;
@@ -17,10 +18,13 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * 为每个命名空间生成单文件预览页 &lt;ns&gt;/preview.html：图标以 base64 内嵌，
- * 支持按类型筛选与关键字搜索，点击卡片复制注册名。
+ * 为每个命名空间生成单文件预览页 &lt;ns&gt;/preview.html。
+ * 图标以 base64 内嵌，每条资料附折叠的原始 JSON（base64 折叠为长度说明），
+ * 支持按类型筛选与关键字搜索。
  */
 public final class PreviewWriter {
+    private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+
     private PreviewWriter() {
     }
 
@@ -42,60 +46,168 @@ public final class PreviewWriter {
     }
 
     private static String html(String ns, List<Target> targets) {
-        JsonArray cards = new JsonArray();
         int items = 0;
+        int blocks = 0;
         int entities = 0;
         int effects = 0;
+        int withIcon = 0;
+        int suspects = 0;
+        List<String> noVisual = new ArrayList<>();
+        StringBuilder cards = new StringBuilder();
         for (Target t : targets) {
             switch (t.kind) {
-                case ITEM -> items++;
-                case ENTITY -> entities++;
+                case ITEM -> {
+                    items++;
+                    if (t.stack.getItem() instanceof BlockItem) {
+                        blocks++;
+                    }
+                }
+                case ENTITY -> {
+                    entities++;
+                    if (t.noVisual) {
+                        noVisual.add(t.id.toString());
+                    }
+                }
                 case EFFECT -> effects++;
             }
-            JsonObject card = new JsonObject();
-            String kind = t.kind.name().toLowerCase(Locale.ROOT);
-            card.addProperty("kind", kind);
-            card.addProperty("kindLabel", kindLabel(t));
-            card.addProperty("name", displayName(t));
-            card.addProperty("en", t.nameEn);
-            card.addProperty("reg", t.id.toString());
-            card.addProperty("img", icon(t));
-            JsonArray tags = new JsonArray();
-            if (t.kind == Target.Kind.ITEM) {
-                if (!t.creativeTab.isEmpty() && !"未知".equals(t.creativeTab)) {
-                    tags.add(t.creativeTab);
-                }
-            } else if (t.kind == Target.Kind.ENTITY) {
-                if (t.noVisual) {
-                    tags.add("无可见模型");
-                }
-                if (t.suspect) {
-                    tags.add("可疑");
-                }
-            } else {
-                tags.add(t.effectCategory);
-                if (t.instant) {
-                    tags.add("瞬间");
-                }
+            if (t.icons.containsKey(128) || t.icons.containsKey(32)) {
+                withIcon++;
             }
-            card.add("tags", tags);
-            cards.add(card);
+            if (t.suspect) {
+                suspects++;
+            }
+            cards.append(card(t));
+        }
+        String fields = """
+                <table><tbody>
+                <tr><th>物品/方块</th><td>name、englishName、registerName、type、maxStacksSize、maxDurability、CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>
+                <tr><th>实体</th><td>name、Englishname、mod、registerName、Icon、IconSmall、iconSource、noVisual、suspect、renderer、kind</td></tr>
+                <tr><th>效果</th><td>name、Englishname、mod、registerName、category、effectCategory、color、instant、Icon、IconSmall、iconSource、iconMode、kind</td></tr>
+                </tbody></table>""";
+        StringBuilder noVisualLine = new StringBuilder();
+        if (noVisual.isEmpty()) {
+            noVisualLine.append("无");
+        } else {
+            noVisualLine.append(noVisual.size()).append(" 条：").append(String.join("、", noVisual));
         }
         return TEMPLATE
-                .replace("__NS__", ns)
+                .replace("__NS__", esc(ns))
                 .replace("__TOTAL__", String.valueOf(targets.size()))
-                .replace("__ITEM__", String.valueOf(items))
-                .replace("__ENT__", String.valueOf(entities))
-                .replace("__EFF__", String.valueOf(effects))
-                .replace("__DATA__", cards.toString());
+                .replace("__ITEMS__", String.valueOf(items))
+                .replace("__BLOCKS__", String.valueOf(blocks))
+                .replace("__ENTITIES__", String.valueOf(entities))
+                .replace("__EFFECTS__", String.valueOf(effects))
+                .replace("__WITHICON__", String.valueOf(withIcon))
+                .replace("__SUSPECTS__", String.valueOf(suspects))
+                .replace("__NOVISUAL__", esc(noVisualLine.toString()))
+                .replace("__FIELDS__", fields)
+                .replace("__CARDS__", cards.toString());
     }
 
-    private static String kindLabel(Target t) {
+    private static String card(Target t) {
+        String kind = t.kind.name().toLowerCase(Locale.ROOT);
+        String img = icon(t);
+        StringBuilder badges = new StringBuilder();
+        if (t.kind == Target.Kind.ENTITY && t.noVisual) {
+            badges.append("<span class=\"badge warn\">无可见模型</span>");
+        }
+        if (t.suspect) {
+            badges.append("<span class=\"badge warn\">可疑</span>");
+        }
+        String thumb = img.isEmpty()
+                ? "<div class=\"noicon\">无图标</div>"
+                : "<img src=\"data:image/png;base64," + img + "\" alt=\"\">";
+        String meta = meta(t);
+        String search = (t.nameZh + " " + t.nameEn + " " + t.id).toLowerCase(Locale.ROOT);
+        return """
+                <article class="card" data-k="__KIND__" data-s="__SEARCH__">
+                <div class="top">__THUMB__<div>
+                <div class="name">__NAME__</div>
+                <div class="sub">__EN__</div>
+                __BADGES__
+                <div class="meta">__META__</div>
+                </div></div>
+                <details><summary>原始 JSON</summary><pre class="raw">__RAW__</pre></details>
+                </article>"""
+                .replace("__KIND__", kind)
+                .replace("__SEARCH__", esc(search))
+                .replace("__THUMB__", thumb)
+                .replace("__NAME__", esc(displayName(t)))
+                .replace("__EN__", esc(t.nameEn))
+                .replace("__BADGES__", badges.toString())
+                .replace("__META__", esc(meta))
+                .replace("__RAW__", esc(rawJson(t, kind)));
+    }
+
+    private static String meta(Target t) {
         return switch (t.kind) {
-            case ITEM -> t.stack.getItem() instanceof BlockItem ? "方块" : "物品";
-            case ENTITY -> "实体";
-            case EFFECT -> "效果";
+            case ITEM -> String.format("%s · %s · 堆叠 %d · 耐久 %d · 创造栏 %s",
+                    t.stack.getItem() instanceof BlockItem ? "Block" : "Item",
+                    t.id, t.stack.getMaxStackSize(), t.stack.getMaxDamage(),
+                    t.creativeTab.isEmpty() ? "未知" : t.creativeTab);
+            case ENTITY -> String.format("Entity · %s%s", t.id,
+                    t.renderer.isEmpty() ? "" : " · 渲染器 " + t.renderer);
+            case EFFECT -> String.format("Effect · %s · %s%s", t.id,
+                    t.effectCategory, t.instant ? " · 瞬间" : "");
         };
+    }
+
+    /** 与 LMS 输出同构的原始 JSON，图标字段折叠为长度说明。 */
+    private static String rawJson(Target t, String kind) {
+        JsonObject o = new JsonObject();
+        o.addProperty("name", displayName(t));
+        if (t.kind == Target.Kind.ITEM) {
+            o.addProperty("englishName", t.nameEn);
+        } else {
+            o.addProperty("Englishname", t.nameEn);
+            o.addProperty("mod", t.namespace());
+        }
+        o.addProperty("registerName", t.id.toString());
+        switch (t.kind) {
+            case ITEM -> {
+                o.addProperty("type", t.stack.getItem() instanceof BlockItem ? "Block" : "Item");
+                o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
+                o.addProperty("maxDurability", t.stack.getMaxDamage());
+                o.addProperty("CreativeTabName", t.creativeTab);
+                o.addProperty("OredictList", t.tags);
+                o.addProperty("smallIcon", folded(t, 32));
+                o.addProperty("largeIcon", folded(t, 128));
+            }
+            case ENTITY -> {
+                o.addProperty("Icon", folded(t, 128));
+                o.addProperty("IconSmall", folded(t, 32));
+                o.addProperty("iconSource", t.icons.isEmpty() ? "" : "render");
+                o.addProperty("noVisual", t.noVisual);
+                o.addProperty("suspect", t.suspect);
+                if (!t.renderer.isEmpty()) {
+                    o.addProperty("renderer", t.renderer);
+                }
+            }
+            case EFFECT -> {
+                o.addProperty("category", switch (t.effectCategory) {
+                    case "BENEFICIAL" -> "BUFF";
+                    case "HARMFUL" -> "DEBUFF";
+                    default -> "BUFF";
+                });
+                o.addProperty("effectCategory", t.effectCategory);
+                o.addProperty("color", t.color);
+                o.addProperty("instant", t.instant);
+                o.addProperty("Icon", folded(t, 128));
+                o.addProperty("IconSmall", folded(t, 32));
+                o.addProperty("iconSource", "sprite");
+                o.addProperty("iconMode", "nearest");
+            }
+        }
+        o.addProperty("kind", kind);
+        return PRETTY.toJson(o);
+    }
+
+    private static String folded(Target t, int size) {
+        var image = t.icons.get(size);
+        if (image == null) {
+            return "";
+        }
+        return "<base64 " + ImageUtil.base64(image).length() + " chars>";
     }
 
     private static String displayName(Target t) {
@@ -113,132 +225,92 @@ public final class PreviewWriter {
         return image == null ? "" : ImageUtil.base64(image);
     }
 
+    private static String esc(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
     private static final String TEMPLATE = """
-            <!doctype html>
-            <html lang="zh-CN">
-            <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>__NS__ 导出预览</title>
-            <style>
-              :root{--bg:#0f1115;--panel:#171a21;--panel2:#1d212a;--line:#2a3040;
-                --text:#e6e9ef;--dim:#8b93a7;--accent:#5aa9ff;--ok:#3ecf8e;--warn:#ffb454}
-              *{box-sizing:border-box}
-              body{margin:0;background:var(--bg);color:var(--text);
-                font:14px/1.5 "Segoe UI",-apple-system,"Microsoft YaHei",sans-serif}
-              header{position:sticky;top:0;z-index:10;background:rgba(15,17,21,.92);
-                backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:16px 24px}
-              h1{margin:0 0 4px;font-size:20px;font-weight:600}
-              .sub{color:var(--dim);font-size:12px}
-              .stats{display:flex;gap:20px;margin-top:10px;flex-wrap:wrap}
-              .stat b{color:var(--accent);font-size:16px;margin-right:4px}
-              .stat span{color:var(--dim);font-size:12px}
-              .bar{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
-              .tab{padding:6px 14px;border:1px solid var(--line);border-radius:999px;
-                background:var(--panel);color:var(--dim);cursor:pointer;font-size:13px}
-              .tab.active{color:var(--text);border-color:var(--accent);background:#16233a}
-              input[type=search]{margin-left:auto;min-width:240px;padding:7px 12px;border-radius:8px;
-                border:1px solid var(--line);background:var(--panel);color:var(--text);outline:none}
-              input[type=search]:focus{border-color:var(--accent)}
-              main{padding:20px 24px 60px;display:grid;gap:14px;
-                grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
-              .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-                padding:14px;display:flex;gap:14px;align-items:center;
-                transition:border-color .15s,transform .15s;cursor:pointer}
-              .card:hover{border-color:var(--accent);transform:translateY(-2px)}
-              .thumb{width:72px;height:72px;flex:0 0 72px;display:flex;align-items:center;
-                justify-content:center;background:var(--panel2);border-radius:10px;
-                image-rendering:pixelated}
-              .thumb img{max-width:64px;max-height:64px;image-rendering:pixelated}
-              .thumb.empty{color:#444c60;font-size:11px}
-              .info{min-width:0;flex:1}
-              .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;
-                text-overflow:ellipsis}
-              .en{color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;
-                text-overflow:ellipsis;margin-bottom:4px}
-              .reg{color:#6f7d99;font:11px/1.4 ui-monospace,Consolas,monospace;
-                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-              .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-              .tag{font-size:11px;padding:1px 7px;border-radius:999px;background:#20283a;
-                color:#9fb4d8;border:1px solid #2c3852}
-              .kind{font-size:11px;padding:1px 7px;border-radius:999px}
-              .kind.item{background:#123126;color:var(--ok);border:1px solid #1e5540}
-              .kind.entity{background:#122a3d;color:var(--accent);border:1px solid #1d4a6b}
-              .kind.effect{background:#33260f;color:var(--warn);border:1px solid #5a431a}
-              .empty-state{grid-column:1/-1;text-align:center;color:var(--dim);padding:60px}
-              footer{position:fixed;right:14px;bottom:10px;color:#3c4457;font-size:11px}
-            </style>
-            </head>
-            <body>
-            <header>
-              <h1>__NS__ 导出预览</h1>
-              <div class="sub">Meow Archive Exporter 产物预览</div>
-              <div class="stats">
-                <div class="stat"><b>__TOTAL__</b><span>条目</span></div>
-                <div class="stat"><b>__ENT__</b><span>实体</span></div>
-                <div class="stat"><b>__ITEM__</b><span>物品/方块</span></div>
-                <div class="stat"><b>__EFF__</b><span>效果</span></div>
-              </div>
-              <div class="bar">
-                <button class="tab active" data-k="all">全部</button>
-                <button class="tab" data-k="entity">实体</button>
-                <button class="tab" data-k="item">物品 / 方块</button>
-                <button class="tab" data-k="effect">效果</button>
-                <input type="search" id="q" placeholder="搜索名称 / 英文 / 注册名…">
-              </div>
-            </header>
-            <main id="grid"></main>
-            <footer>点击卡片复制注册名</footer>
+            <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>__NS__ · 交付预览</title><style>
+            :root{--bg:#101010;--panel:#211c17;--border:#6d4a2a;--accent:#d0a060;--dim:#9a8b7a}
+            *{box-sizing:border-box}
+            body{margin:0;background:var(--bg);color:#e8e0d5;font:14px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+            header{position:sticky;top:0;background:#171310;border-bottom:1px solid var(--border);padding:14px 20px;z-index:2}
+            header h1{margin:0;font-size:18px;color:var(--accent)}
+            header .info{color:var(--dim);font-size:12px;margin-top:4px}
+            .bar{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+            .tab{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:#1b150f;
+              color:var(--dim);cursor:pointer;font-size:12px}
+            .tab.active{color:#1b140d;background:var(--accent);border-color:var(--accent)}
+            input[type=search]{margin-left:auto;min-width:240px;padding:6px 10px;border-radius:6px;
+              border:1px solid #4b3521;background:#151210;color:#e8e0d5;outline:none;font-size:12px}
+            input[type=search]:focus{border-color:var(--accent)}
+            main{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;padding:20px}
+            .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}
+            .card.intro{grid-column:1/-1}
+            .top{display:flex;gap:14px;align-items:flex-start}
+            .top img{width:96px;height:96px;image-rendering:pixelated;background:#151210;
+              border:1px solid #3a2a1c;border-radius:8px}
+            .noicon{width:96px;height:96px;display:flex;align-items:center;justify-content:center;
+              color:var(--dim);border:1px dashed #3a2a1c;border-radius:8px;font-size:12px;flex:0 0 96px}
+            .name{font-size:17px;font-weight:600;color:#ffe082}
+            .sub{color:var(--dim);font-size:12px;min-height:16px}
+            .meta{color:#b9a78f;font-size:12px;margin-top:4px;word-break:break-all}
+            .badge{display:inline-block;font-size:11px;color:#1b140d;background:var(--accent);
+              border-radius:4px;padding:1px 7px;margin-bottom:6px}
+            .badge.warn{background:#a8574a;color:#ffe9e4;margin-left:4px}
+            h2,h3{color:#ffd08a;margin:16px 0 6px}
+            h2{font-size:19px}h3{font-size:16px}
+            table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+            th,td{border:1px solid #4b3521;padding:5px 8px;text-align:left}th{background:#2e241a;color:#ffd08a}
+            details{margin-top:8px;border-top:1px dashed #3a2a1c;padding-top:6px}
+            summary{cursor:pointer;color:var(--dim);font-size:12px}
+            pre.raw{margin:6px 0 0;padding:10px;background:#151210;border:1px solid #3a2a1c;border-radius:6px;
+              color:#c9bda8;font:11px/1.5 Consolas,monospace;white-space:pre-wrap;word-break:break-all;
+              max-height:340px;overflow:auto}
+            .kv{display:grid;grid-template-columns:88px 1fr;gap:2px 8px;font-size:12px;margin-top:6px}
+            .kv dt{color:var(--dim)}.kv dd{margin:0;color:#d8cbb5;word-break:break-all}
+            .empty{color:#7d6f60;font-style:italic;grid-column:1/-1;padding:40px;text-align:center}
+            </style></head><body>
+            <header><h1>__NS__ · 交付预览</h1>
+            <div class="info">__TOTAL__ 条资料 · 图标 __WITHICON__/__TOTAL__ · __NS___all.json</div>
+            <div class="bar">
+            <button class="tab active" data-k="all">全部</button>
+            <button class="tab" data-k="item">物品 / 方块</button>
+            <button class="tab" data-k="entity">实体</button>
+            <button class="tab" data-k="effect">效果</button>
+            <input type="search" id="q" placeholder="搜索名称 / 英文 / 注册名…">
+            </div></header>
+            <main id="grid">
+            <article class="card intro"><div class="badge">导出概览</div>
+            <h2>__NS__</h2>
+            <dl class="kv">
+            <dt>条目</dt><dd>__ITEMS__ 物品/方块（__BLOCKS__ 方块） + __ENTITIES__ 实体 + __EFFECTS__ 效果，共 __TOTAL__</dd>
+            <dt>图标</dt><dd>__WITHICON__/__TOTAL__</dd>
+            <dt>可疑</dt><dd>__SUSPECTS__</dd>
+            <dt>无视觉</dt><dd>__NOVISUAL__</dd>
+            </dl>
+            <h3>字段</h3>
+            __FIELDS__
+            </article>
+            __CARDS__
+            </main>
             <script>
-            const DATA = __DATA__;
-            const grid = document.getElementById('grid');
-            const q = document.getElementById('q');
-            let kind = 'all';
-
-            function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-
-            function render(){
-              const kw = q.value.trim().toLowerCase();
-              const list = DATA.filter(d=>{
-                if(kind!=='all' && d.kind!==kind) return false;
-                if(!kw) return true;
-                return (d.name+' '+d.en+' '+d.reg).toLowerCase().includes(kw);
+            const grid=document.getElementById('grid'),q=document.getElementById('q');
+            let kind='all';
+            function apply(){
+              const kw=q.value.trim().toLowerCase();
+              grid.querySelectorAll('.card:not(.intro)').forEach(c=>{
+                const okKind = kind==='all'||c.dataset.k===kind;
+                const okKw = !kw||c.dataset.s.includes(kw);
+                c.style.display = okKind&&okKw ? '' : 'none';
               });
-              if(!list.length){grid.innerHTML='<div class="empty-state">没有匹配的条目</div>';return}
-              grid.innerHTML = list.map(d=>`
-                <div class="card" data-reg="${esc(d.reg)}" title="点击复制 ${esc(d.reg)}">
-                  <div class="thumb ${d.img?'':'empty'}">${d.img?`<img src="data:image/png;base64,${d.img}" alt="">`:'无图'}</div>
-                  <div class="info">
-                    <div class="nm">${esc(d.name||d.en||d.reg)}</div>
-                    <div class="en">${esc(d.en)}</div>
-                    <div class="reg">${esc(d.reg)}</div>
-                    <div class="tags">
-                      <span class="kind ${d.kind}">${d.kindLabel}</span>
-                      ${d.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
-                    </div>
-                  </div>
-                </div>`).join('');
             }
-
-            grid.addEventListener('click', async ev=>{
-              const card = ev.target.closest('.card');
-              if(!card) return;
-              try{ await navigator.clipboard.writeText(card.dataset.reg); }catch(e){}
-              const old = card.style.borderColor;
-              card.style.borderColor='#3ecf8e';
-              setTimeout(()=>card.style.borderColor=old, 400);
-            });
-
             document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
               document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-              t.classList.add('active');
-              kind = t.dataset.k;
-              render();
+              t.classList.add('active'); kind=t.dataset.k; apply();
             }));
-            q.addEventListener('input', render);
-            render();
+            q.addEventListener('input',apply);
             </script>
-            </body>
-            </html>
+            </body></html>
             """;
 }
