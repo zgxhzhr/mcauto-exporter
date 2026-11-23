@@ -126,7 +126,7 @@ public final class ExportService {
             }
             BufferedImage image = switch (target.kind) {
                 case ITEM -> ItemIconRenderer.render(target.stack, size);
-                case ENTITY -> EntityIconRenderer.render(target.entityType, size, 150.0F);
+                case ENTITY -> EntityIconRenderer.render(target.entityType, size);
                 case EFFECT -> EffectIconRenderer.render(target.id, size);
             };
             if (image != null && !ImageUtil.blank(image)) {
@@ -149,7 +149,7 @@ public final class ExportService {
         }
         if (target.kind == Target.Kind.ENTITY) {
             if (!target.icons.containsKey(128)) {
-                BufferedImage retry = EntityIconRenderer.render(target.entityType, 128, 315.0F);
+                BufferedImage retry = EntityIconRenderer.render(target.entityType, 128);
                 if (retry != null && !ImageUtil.blank(retry)) {
                     target.icons.put(128, retry);
                     writePng(target, 128, retry);
