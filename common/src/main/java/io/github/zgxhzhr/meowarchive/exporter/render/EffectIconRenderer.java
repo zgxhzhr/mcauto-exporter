@@ -20,10 +20,7 @@ public final class EffectIconRenderer {
                 id.getNamespace(), "textures/mob_effect/" + id.getPath() + ".png");
         try {
             var resource = mc.getResourceManager().getResource(texture);
-            if (resource.isEmpty()) {
-                return null;
-            }
-            try (InputStream in = resource.get().open()) {
+            try (InputStream in = resource.getInputStream()) {
                 BufferedImage source = ImageIO.read(in);
                 if (source == null) {
                     return null;
@@ -41,10 +38,7 @@ public final class EffectIconRenderer {
                 id.getNamespace(), "textures/mob_effect/" + id.getPath() + ".png");
         try {
             var resource = mc.getResourceManager().getResource(texture);
-            if (resource.isEmpty()) {
-                return 0;
-            }
-            try (InputStream in = resource.get().open()) {
+            try (InputStream in = resource.getInputStream()) {
                 BufferedImage source = ImageIO.read(in);
                 return source == null ? 0 : ImageUtil.colorCount(source);
             }

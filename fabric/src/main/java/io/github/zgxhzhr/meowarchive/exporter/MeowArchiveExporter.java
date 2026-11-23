@@ -1,6 +1,5 @@
 package io.github.zgxhzhr.meowarchive.exporter;
 
-import io.github.zgxhzhr.meowarchive.exporter.command.ExportCommand;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
 import io.github.zgxhzhr.meowarchive.exporter.core.AutoExport;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
@@ -30,8 +29,6 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
             ExportService.get().tick();
             AutoExport.tick();
         });
-        HudRenderCallback.EVENT.register((pose, tickDelta) -> ExportService.get().onHudRender(pose));
-        ExportCommand.register();
-        ExporterLog.LOG.info("Meow Archive Exporter ready");
+        HudRenderCallback.EVENT.register((pose, tickDelta) -> ExportService.get().onHudRender(pose));        ExporterLog.LOG.info("Meow Archive Exporter ready");
     }
 }

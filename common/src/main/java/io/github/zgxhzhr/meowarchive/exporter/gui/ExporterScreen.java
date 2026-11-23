@@ -13,6 +13,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public final class ExporterScreen extends Screen {
     private int actionY;
 
     public ExporterScreen() {
-        super(Component.literal("Meow Archive Exporter"));
+        super(new TextComponent("Meow Archive Exporter"));
     }
 
     @Override
@@ -117,34 +118,34 @@ public final class ExporterScreen extends Screen {
 
         int half = (rightW - 8) / 2;
         itemsButton = addRenderableWidget(new WoodButton(rightX, y + 25, half, 20,
-                Component.literal("物品 / 方块"), () -> {
+                new TextComponent("物品 / 方块"), () -> {
             items = !items;
             itemsButton.setChecked(items);
         }).withCheckBox(items));
         entitiesButton = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 25, half, 20,
-                Component.literal("实体"), () -> {
+                new TextComponent("实体"), () -> {
             entities = !entities;
             entitiesButton.setChecked(entities);
         }).withCheckBox(entities));
         effectsButton = addRenderableWidget(new WoodButton(rightX, y + 50, rightW, 20,
-                Component.literal("效果"), () -> {
+                new TextComponent("效果"), () -> {
             effects = !effects;
             effectsButton.setChecked(effects);
         }).withCheckBox(effects));
 
         size32Button = addRenderableWidget(new WoodButton(rightX, y + 75, half, 20,
-                Component.literal("32×32"), () -> {
+                new TextComponent("32×32"), () -> {
             size32 = !size32;
             size32Button.setChecked(size32);
         }).withCheckBox(size32));
         size128Button = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 75, half, 20,
-                Component.literal("128×128"), () -> {
+                new TextComponent("128×128"), () -> {
             size128 = !size128;
             size128Button.setChecked(size128);
         }).withCheckBox(size128));
 
         addRenderableWidget(new WoodButton(rightX, y + 100, rightW, 20,
-                Component.literal("导出单个图标…"), () ->
+                new TextComponent("导出单个图标…"), () ->
                 Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
 
         int gap = 8;
@@ -152,11 +153,11 @@ public final class ExporterScreen extends Screen {
         int openW = 92;
         int startW = Math.max(90, contentRight - contentLeft - closeW - openW - gap * 2);
         startButton = addRenderableWidget(new WoodButton(contentLeft, actionY, startW, 20,
-                Component.literal("开始导出"), this::start));
+                new TextComponent("开始导出"), this::start));
         addRenderableWidget(new WoodButton(contentLeft + startW + gap, actionY, openW, 20,
-                Component.literal("打开目录"), this::openOutput));
+                new TextComponent("打开目录"), this::openOutput));
         addRenderableWidget(new WoodButton(contentRight - closeW, actionY, closeW, 20,
-                Component.literal("关闭"), this::onClose));
+                new TextComponent("关闭"), this::onClose));
     }
 
     private void start() {
@@ -214,7 +215,7 @@ public final class ExporterScreen extends Screen {
     }
 
     private Component modeLabel() {
-        return Component.literal("模式：" + mode.label);
+        return new TextComponent("模式：" + mode.label);
     }
 
     private Set<String> contentNamespaces() {

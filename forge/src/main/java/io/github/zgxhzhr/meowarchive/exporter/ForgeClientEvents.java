@@ -7,7 +7,7 @@ import io.github.zgxhzhr.meowarchive.exporter.gui.ExporterScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
-import net.minecraftforge.client.event.RenderGuiEvent;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -37,8 +37,12 @@ public final class ForgeClientEvents {
         AutoExport.tick();
     }
 
-    private static void renderGui(RenderGuiEvent.Post event) {
-        ExportService.get().onHudRender(event.getPoseStack());
+    private static void renderGui(RenderGameOverlayEvent.Post event) {
+        // 1.18.2 只有 RenderGameOverlayEvent，逐个元素触发；只在 ALL 阶段画一次
+        if (event.getType() != RenderGameOverlayEvent.ElementType.ALL) {
+            return;
+        }
+        ExportService.get().onHudRender(event.getMatrixStack());
     }
 
     private static void registerClientCommands(RegisterClientCommandsEvent event) {

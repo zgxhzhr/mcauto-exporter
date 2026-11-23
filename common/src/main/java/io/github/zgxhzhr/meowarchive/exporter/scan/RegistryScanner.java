@@ -143,28 +143,58 @@ public final class RegistryScanner {
 
     private static Map<String, String> loadLanguage(String code) {
         Map<String, String> out = new HashMap<>();
+        boolean fromPack = false;
         try {
             var rm = Minecraft.getInstance().getResourceManager();
-            var files = rm.listResources("lang", loc -> loc.getPath().equals("lang/" + code + ".json"));
-            for (var entry : files.entrySet()) {
-                try (var in = entry.getValue().open()) {
-                    JsonObject json = GSON.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
-                    if (json == null) {
-                        continue;
-                    }
-                    for (var field : json.entrySet()) {
-                        if (field.getValue().isJsonPrimitive()) {
-                            out.put(field.getKey(), field.getValue().getAsString());
-                        }
-                    }
+            // 1.18.2 的 listResources 接收路径断言并返回 Collection<ResourceLocation>
+            var files = rm.listResources("lang", path -> path.endsWith("/" + code + ".json")
+                    || path.equals(code + ".json"));
+            for (ResourceLocation file : files) {
+                fromPack = true;
+                try (var in = rm.getResource(file).getInputStream()) {
+                    mergeLanguage(out, in);
                 } catch (Throwable ignored) {
                     // 单个语言文件损坏不影响其它命名空间
                 }
             }
         } catch (Throwable e) {
-            ExporterLog.LOG.warn("语言表加载失败 {}: {}", code, e.toString());
+            ExporterLog.LOG.warn("语言表（资源包）加载失败 {}: {}", code, e.toString());
         }
+        // 资源管理器在某些 loader/资源包组合下拿不到模组内置语言，再从 classpath 直接读一遍兜底。
+        int direct = 0;
+        try {
+            java.util.LinkedHashSet<String> namespaces =
+                    new java.util.LinkedHashSet<>(io.github.zgxhzhr.meowarchive.exporter.platform.Services.PLATFORM.loadedModIds());
+            namespaces.add("minecraft");
+            ClassLoader cl = RegistryScanner.class.getClassLoader();
+            for (String ns : namespaces) {
+                try (var in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
+                    if (in == null) {
+                        continue;
+                    }
+                    mergeLanguage(out, in);
+                    direct++;
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("语言表（classpath）加载失败 {}: {}", code, e.toString());
+        }
+        ExporterLog.LOG.info("语言 {} 加载完成：资源包={} classpath={} 键={}",
+                code, fromPack, direct, out.size());
         return out;
+    }
+
+    private static void mergeLanguage(Map<String, String> out, java.io.InputStream in) {
+        JsonObject json = GSON.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
+        if (json == null) {
+            return;
+        }
+        for (var field : json.entrySet()) {
+            if (field.getValue().isJsonPrimitive()) {
+                out.put(field.getKey(), field.getValue().getAsString());
+            }
+        }
     }
 
     private static String creativeTab(Item item, Minecraft mc) {

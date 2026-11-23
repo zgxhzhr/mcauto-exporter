@@ -11,6 +11,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ public final class TargetPickerScreen extends Screen {
     private int messageY;
 
     public TargetPickerScreen(Screen parent, ExportRequest template) {
-        super(Component.literal("选择要导出的条目"));
+        super(new TextComponent("选择要导出的条目"));
         this.parent = parent;
         this.template = template;
     }
@@ -72,12 +73,12 @@ public final class TargetPickerScreen extends Screen {
         visible = Math.max(2, listH / ROW_H);
         messageY = actionY - 14;
 
-        search = new EditBox(font, contentLeft, panelY + 34, listW, 18, Component.literal("搜索"));
+        search = new EditBox(font, contentLeft, panelY + 34, listW, 18, new TextComponent("搜索"));
         search.setMaxLength(128);
         search.setResponder(text -> refresh());
         addRenderableWidget(search);
         addRenderableWidget(new WoodButton(contentRight - 80, actionY, 80, 20,
-                Component.literal("返回"), this::onClose));
+                new TextComponent("返回"), this::onClose));
         refresh();
     }
 
