@@ -120,15 +120,37 @@ public final class ExportService {
         Target target = targets.get(index);
         currentLabel = displayName(target);
         boolean any = false;
+        int baseSize = request.sizes.stream().mapToInt(Integer::intValue).max().orElse(128);
+        BufferedImage base = null;
+        if (target.kind != Target.Kind.EFFECT) {
+            // 只在最大尺寸上离屏渲染一次，其余尺寸由它缩放而来：同一目标在多个尺寸之间
+            // 连续离屏渲染时，上一尺寸的几何体会串进下一张纹理（表现为图标角落的缩小副本）。
+            base = target.icons.get(baseSize);
+            if (base == null) {
+                base = target.kind == Target.Kind.ITEM
+                        ? ItemIconRenderer.render(target.stack, baseSize)
+                        : EntityIconRenderer.render(target.entityType, baseSize, 150.0F);
+                if (base != null && !ImageUtil.blank(base)) {
+                    target.icons.put(baseSize, base);
+                    writePng(target, baseSize, base);
+                    any = true;
+                } else {
+                    base = null;
+                }
+            }
+        }
         for (int size : request.sizes) {
             if (target.icons.containsKey(size)) {
                 continue;
             }
-            BufferedImage image = switch (target.kind) {
-                case ITEM -> ItemIconRenderer.render(target.stack, size);
-                case ENTITY -> EntityIconRenderer.render(target.entityType, size, 150.0F);
-                case EFFECT -> EffectIconRenderer.render(target.id, size);
-            };
+            BufferedImage image;
+            if (base != null) {
+                image = ImageUtil.fit(base, size);
+            } else if (target.kind == Target.Kind.EFFECT) {
+                image = EffectIconRenderer.render(target.id, size);
+            } else {
+                continue;
+            }
             if (image != null && !ImageUtil.blank(image)) {
                 target.icons.put(size, image);
                 writePng(target, size, image);

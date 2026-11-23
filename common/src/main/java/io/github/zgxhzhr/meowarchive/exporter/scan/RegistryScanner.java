@@ -85,7 +85,7 @@ public final class RegistryScanner {
                 t.width = type.getDimensions().width();
                 t.height = type.getDimensions().height();
                 try {
-                    Entity entity = type.create(mc.level);
+                    Entity entity = type.create(mc.level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
                     if (entity != null) {
                         if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
                             t.maxHealth = living.getMaxHealth();

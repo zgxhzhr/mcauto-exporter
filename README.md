@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **1.21.1 / Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -84,7 +84,7 @@ Forge 尚未移植，需要时从模板恢复对应模块。
 
 ## 已知限制
 
-- 支持 1.21.1 的 Fabric 与 NeoForge 客户端，Forge 未移植。
+- 支持 Fabric 与 NeoForge 客户端，Forge 未移植。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
 - 配方、附魔暂不导出。
