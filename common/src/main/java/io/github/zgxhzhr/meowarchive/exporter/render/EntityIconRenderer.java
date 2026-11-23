@@ -25,7 +25,7 @@ public final class EntityIconRenderer {
     private EntityIconRenderer() {
     }
 
-    public static BufferedImage render(EntityType<?> type, int size, float yaw) {
+    public static BufferedImage render(EntityType<?> type, int size) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             return null;
@@ -41,7 +41,7 @@ public final class EntityIconRenderer {
         }
         try {
             entity.setPos(0.0, 0.0, 0.0);
-            yaw = resolveYaw(entity, yaw);
+            float yaw = resolveYaw(entity);
             entity.setYRot(yaw);
             entity.setXRot(0.0F);
             entity.setYHeadRot(yaw);
@@ -228,10 +228,11 @@ public final class EntityIconRenderer {
     }
 
     /**
-     * 原版模型（LivingEntityRenderer 系）正面朝 +Z，150° 会拍到背面；
-     * GeckoLib 等自定义渲染器的模型正面朝 -Z，沿用调用方给的角度。
+     * 模型朝向：原版（LivingEntityRenderer）模型按 +Z 建模，取 330° 得到三分之四正面；
+     * GeckoLib 等自定义渲染器的模型按 -Z 建模，同一变换下 330° 正好转到正侧面，
+     * 取 15° 才能让脸朝向镜头（此前对它们沿用调用方的 150°，导致整体背对镜头）。
      */
-    private static float resolveYaw(Entity entity, float yaw) {
+    private static float resolveYaw(Entity entity) {
         try {
             if (Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity)
                     instanceof LivingEntityRenderer<?, ?, ?>) {
@@ -239,7 +240,7 @@ public final class EntityIconRenderer {
             }
         } catch (Throwable ignored) {
         }
-        return yaw;
+        return 15.0F;
     }
 
     private static BufferedImage draw(Entity entity, int size, float tx, float ty, float scale) {

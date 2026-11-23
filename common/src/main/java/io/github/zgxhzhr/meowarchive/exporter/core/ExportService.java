@@ -129,7 +129,7 @@ public final class ExportService {
             if (base == null) {
                 base = target.kind == Target.Kind.ITEM
                         ? ItemIconRenderer.render(target.stack, baseSize)
-                        : EntityIconRenderer.render(target.entityType, baseSize, 150.0F);
+                        : EntityIconRenderer.render(target.entityType, baseSize);
                 if (base != null && !ImageUtil.blank(base)) {
                     target.icons.put(baseSize, base);
                     writePng(target, baseSize, base);
@@ -171,7 +171,7 @@ public final class ExportService {
         }
         if (target.kind == Target.Kind.ENTITY) {
             if (!target.icons.containsKey(128)) {
-                BufferedImage retry = EntityIconRenderer.render(target.entityType, 128, 315.0F);
+                BufferedImage retry = EntityIconRenderer.render(target.entityType, 128);
                 if (retry != null && !ImageUtil.blank(retry)) {
                     target.icons.put(128, retry);
                     writePng(target, 128, retry);
