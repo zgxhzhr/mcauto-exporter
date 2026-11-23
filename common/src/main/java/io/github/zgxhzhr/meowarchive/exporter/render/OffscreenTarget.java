@@ -24,7 +24,6 @@ final class OffscreenTarget {
     private final int depthTexture;
 
     OffscreenTarget(int size) {
-        RenderSystem.assertOnRenderThread();
         this.size = size;
         this.framebuffer = GlStateManager.glGenFramebuffers();
         this.colorTexture = GlStateManager._genTexture();

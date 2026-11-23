@@ -1,0 +1,82 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>__NS__ · 交付预览</title><style>
+:root{--bg:#101010;--panel:#211c17;--border:#6d4a2a;--accent:#d0a060;--dim:#9a8b7a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#e8e0d5;font:14px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+header{position:sticky;top:0;background:#171310;border-bottom:1px solid var(--border);padding:14px 20px;z-index:2}
+header h1{margin:0;font-size:18px;color:var(--accent)}
+header .info{color:var(--dim);font-size:12px;margin-top:4px}
+.bar{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.tab{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:#1b150f;
+  color:var(--dim);cursor:pointer;font-size:12px}
+.tab.active{color:#1b140d;background:var(--accent);border-color:var(--accent)}
+input[type=search]{margin-left:auto;min-width:240px;padding:6px 10px;border-radius:6px;
+  border:1px solid #4b3521;background:#151210;color:#e8e0d5;outline:none;font-size:12px}
+input[type=search]:focus{border-color:var(--accent)}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;padding:20px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}
+.card.intro{grid-column:1/-1}
+.top{display:flex;gap:14px;align-items:flex-start}
+.top img{width:96px;height:96px;image-rendering:pixelated;background:#151210;
+  border:1px solid #3a2a1c;border-radius:8px}
+.noicon{width:96px;height:96px;display:flex;align-items:center;justify-content:center;
+  color:var(--dim);border:1px dashed #3a2a1c;border-radius:8px;font-size:12px;flex:0 0 96px}
+.name{font-size:17px;font-weight:600;color:#ffe082}
+.sub{color:var(--dim);font-size:12px;min-height:16px}
+.meta{color:#b9a78f;font-size:12px;margin-top:4px;word-break:break-all}
+.badge{display:inline-block;font-size:11px;color:#1b140d;background:var(--accent);
+  border-radius:4px;padding:1px 7px;margin-bottom:6px}
+.badge.warn{background:#a8574a;color:#ffe9e4;margin-left:4px}
+h2,h3{color:#ffd08a;margin:16px 0 6px}
+h2{font-size:19px}h3{font-size:16px}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+th,td{border:1px solid #4b3521;padding:5px 8px;text-align:left}th{background:#2e241a;color:#ffd08a}
+details{margin-top:8px;border-top:1px dashed #3a2a1c;padding-top:6px}
+summary{cursor:pointer;color:var(--dim);font-size:12px}
+pre.raw{margin:6px 0 0;padding:10px;background:#151210;border:1px solid #3a2a1c;border-radius:6px;
+  color:#c9bda8;font:11px/1.5 Consolas,monospace;white-space:pre-wrap;word-break:break-all;
+  max-height:340px;overflow:auto}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:2px 8px;font-size:12px;margin-top:6px}
+.kv dt{color:var(--dim)}.kv dd{margin:0;color:#d8cbb5;word-break:break-all}
+.empty{color:#7d6f60;font-style:italic;grid-column:1/-1;padding:40px;text-align:center}
+</style></head><body>
+<header><h1>__NS__ · 交付预览</h1>
+<div class="info">__TOTAL__ 条资料 · 图标 __WITHICON__/__TOTAL__ · __NS___all.json</div>
+<div class="bar">
+<button class="tab active" data-k="all">全部</button>
+<button class="tab" data-k="item">物品 / 方块</button>
+<button class="tab" data-k="entity">实体</button>
+<button class="tab" data-k="effect">效果</button>
+<input type="search" id="q" placeholder="搜索名称 / 英文 / 注册名…">
+</div></header>
+<main id="grid">
+<article class="card intro"><div class="badge">导出概览</div>
+<h2>__NS__</h2>
+<dl class="kv">
+<dt>条目</dt><dd>__ITEMS__ 物品/方块（__BLOCKS__ 方块） + __ENTITIES__ 实体 + __EFFECTS__ 效果，共 __TOTAL__</dd>
+<dt>图标</dt><dd>__WITHICON__/__TOTAL__</dd>
+<dt>可疑</dt><dd>__SUSPECTS__</dd>
+<dt>无视觉</dt><dd>__NOVISUAL__</dd>
+</dl>
+<h3>字段</h3>
+__FIELDS__
+</article>
+__CARDS__
+</main>
+<script>
+const grid=document.getElementById('grid'),q=document.getElementById('q');
+let kind='all';
+function apply(){
+  const kw=q.value.trim().toLowerCase();
+  grid.querySelectorAll('.card:not(.intro)').forEach(c=>{
+    const okKind = kind==='all'||c.dataset.k===kind;
+    const okKw = !kw||c.dataset.s.includes(kw);
+    c.style.display = okKind&&okKw ? '' : 'none';
+  });
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); kind=t.dataset.k; apply();
+}));
+q.addEventListener('input',apply);
+</script>
+</body></html>

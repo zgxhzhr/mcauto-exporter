@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.AbstractButton;
-import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -38,7 +37,7 @@ class WoodButton extends AbstractButton {
 
     @Override
     public void renderButton(PoseStack pose, int mouseX, int mouseY, float partialTick) {
-        boolean hovered = isHoveredOrFocused();
+        boolean hovered = this.isHovered() || this.isFocused();
         MeowArchiveStyle.fill(pose, this.x, this.y, this.x + width, this.y + height,
                 hovered ? MeowArchiveStyle.BUTTON_BG_HOVER : MeowArchiveStyle.BUTTON_BG);
         MeowArchiveStyle.outline(pose, this.x, this.y, width, height, MeowArchiveStyle.PANEL_BORDER);
@@ -56,10 +55,5 @@ class WoodButton extends AbstractButton {
         int tx = textLeft + (textRight - textLeft - textWidth) / 2;
         int ty = this.y + (height - 8) / 2;
         font.draw(pose, getMessage(), tx, ty, color);
-    }
-
-    @Override
-    public void updateNarration(NarrationElementOutput output) {
-        this.defaultButtonNarrationText(output);
     }
 }

@@ -12,11 +12,8 @@ configurations {
 }
 
 dependencies {
-    compileOnly(project(':common')) {
-        capabilities {
-            requireCapability "$group:$mod_id"
-        }
-    }
+    // common 的源码通过 commonJava 直接并入编译，不再依赖 :common 的产物：
+    // 1.16.5 的 common 由 loom 编译，额外加 project 依赖会和 loom 的映射能力冲突。
     commonJava project(path: ':common', configuration: 'commonJava')
     commonResources project(path: ':common', configuration: 'commonResources')
 }

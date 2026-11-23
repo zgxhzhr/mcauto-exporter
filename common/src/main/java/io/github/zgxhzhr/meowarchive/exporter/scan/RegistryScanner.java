@@ -9,7 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -49,10 +49,7 @@ public final class RegistryScanner {
                 Target t = Target.item(id, stack);
                 fillNames(t, lang, item.getDescriptionId());
                 t.creativeTab = creativeTab(item, mc);
-                t.tags = stack.getTags()
-                        .map(TagKey::location)
-                        .map(ResourceLocation::toString)
-                        .collect(Collectors.joining(",", "[", "]"));
+                t.tags = itemTags(item);
                 out.add(t);
             }
         }
@@ -81,7 +78,7 @@ public final class RegistryScanner {
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
-                if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
+                if (t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty()) {
                     // 技术性实体（中英文名都缺失），不参与导出
                     continue;
                 }
@@ -91,8 +88,8 @@ public final class RegistryScanner {
                 try {
                     Entity entity = type.create(mc.level);
                     if (entity != null) {
-                        if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
-                            t.maxHealth = living.getMaxHealth();
+                        if (entity instanceof net.minecraft.world.entity.LivingEntity) {
+                            t.maxHealth = ((net.minecraft.world.entity.LivingEntity) entity).getMaxHealth();
                         }
                         t.fireImmune = entity.fireImmune();
                         t.tameable = entity instanceof TamableAnimal;
@@ -108,6 +105,21 @@ public final class RegistryScanner {
             }
         }
         return out;
+    }
+
+    /** 1.16.5 没有 ItemStack#getTags，从标签表反查该物品所属标签。 */
+    private static String itemTags(Item item) {
+        try {
+            java.util.Collection<?> tags = ItemTags.getAllTags().getMatchingTags(item);
+            List<String> ids = new ArrayList<>();
+            for (Object tag : tags) {
+                ids.add(String.valueOf(tag));
+            }
+            java.util.Collections.sort(ids);
+            return "[" + String.join(",", ids) + "]";
+        } catch (Throwable e) {
+            return "[]";
+        }
     }
 
     private static void fillNames(Target t, LanguagePair lang, String descId) {
@@ -145,13 +157,12 @@ public final class RegistryScanner {
         Map<String, String> out = new HashMap<>();
         boolean fromPack = false;
         try {
-            var rm = Minecraft.getInstance().getResourceManager();
-            // 1.18.2 的 listResources 接收路径断言并返回 Collection<ResourceLocation>
-            var files = rm.listResources("lang", path -> path.endsWith("/" + code + ".json")
-                    || path.equals(code + ".json"));
+            net.minecraft.server.packs.resources.ResourceManager rm = Minecraft.getInstance().getResourceManager();
+            java.util.Collection<ResourceLocation> files = rm.listResources("lang",
+                    path -> path.endsWith("/" + code + ".json") || path.equals(code + ".json"));
             for (ResourceLocation file : files) {
                 fromPack = true;
-                try (var in = rm.getResource(file).getInputStream()) {
+                try (java.io.InputStream in = rm.getResource(file).getInputStream()) {
                     mergeLanguage(out, in);
                 } catch (Throwable ignored) {
                     // 单个语言文件损坏不影响其它命名空间
@@ -168,7 +179,7 @@ public final class RegistryScanner {
             namespaces.add("minecraft");
             ClassLoader cl = RegistryScanner.class.getClassLoader();
             for (String ns : namespaces) {
-                try (var in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
+                try (java.io.InputStream in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
                     if (in == null) {
                         continue;
                     }
@@ -190,7 +201,7 @@ public final class RegistryScanner {
         if (json == null) {
             return;
         }
-        for (var field : json.entrySet()) {
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> field : json.entrySet()) {
             if (field.getValue().isJsonPrimitive()) {
                 out.put(field.getKey(), field.getValue().getAsString());
             }
@@ -201,8 +212,8 @@ public final class RegistryScanner {
         if (creativeTabs == null) {
             creativeTabs = new HashMap<>();
             for (CreativeModeTab tab : CreativeModeTab.TABS) {
-                // 搜索页包含所有物品，会把真实分类覆盖掉
-                if (tab == null || tab == CreativeModeTab.TAB_SEARCH) {
+                // 搜索页包含所有物品，会把真实分类覆盖掉；快捷栏页在客户端填充时直接抛异常
+                if (tab == null || tab == CreativeModeTab.TAB_SEARCH || tab == CreativeModeTab.TAB_HOTBAR) {
                     continue;
                 }
                 String name;

@@ -25,7 +25,7 @@ public class ForgePlatformHelper implements IPlatformHelper {
     public List<String> loadedModIds() {
         return ModList.get().getMods().stream()
                 .map(IModInfo::getModId)
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override

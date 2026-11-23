@@ -8,7 +8,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import com.mojang.math.Matrix4f;
 
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Method;
@@ -53,7 +52,8 @@ public final class EntityIconRenderer {
             float fit = canvas * 0.9F;
             float scale = Math.min(fit / (bbH * 1.25F), fit / (bbW * 2.6F));
 
-            BufferedImage raw = draw(entity, canvas, canvas / 2.0F, canvas * 0.94F, scale);
+            // y 向上：把模型脚底放在画布底部附近，身体向上生长，保证整只实体都在画布内。
+            BufferedImage raw = draw(entity, canvas, canvas / 2.0F, canvas * 0.06F, scale);
             if (raw == null) {
                 return null;
             }
@@ -75,14 +75,19 @@ public final class EntityIconRenderer {
 
     /** 统一设置实体的朝向（身体、头、历史角度一起改，避免插值产生偏转）。 */
     private static void applyYaw(Entity entity, float yaw) {
-        entity.setYRot(yaw);
-        entity.setXRot(0.0F);
-        entity.setYHeadRot(yaw);
-        if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+        // 1.16.5 没有旋转 setter，直接写公开字段；历史角度一起改，避免插值产生偏转。
+        entity.yRot = yaw;
+        entity.yRotO = yaw;
+        entity.xRot = 0.0F;
+        entity.xRotO = 0.0F;
+        if (entity instanceof net.minecraft.world.entity.LivingEntity) {
+            net.minecraft.world.entity.LivingEntity living =
+                    (net.minecraft.world.entity.LivingEntity) entity;
             living.yBodyRot = yaw;
             living.yBodyRotO = yaw;
+            living.yHeadRot = yaw;
+            living.yHeadRotO = yaw;
         }
-        entity.setOldPosAndRot();
     }
 
     /** 裁出实际内容并缩放到目标尺寸：水平居中、底边对齐。 */
@@ -243,20 +248,16 @@ public final class EntityIconRenderer {
         Minecraft mc = Minecraft.getInstance();
         OffscreenTarget target = null;
         MultiBufferSource.BufferSource buffers = null;
-        Matrix4f previousProjection = null;
         try {
-            // 上一轮可能还有未提交的批次，先冲到当前主目标，避免串进本次离屏纹理
-            mc.renderBuffers().bufferSource().endBatch();
-            previousProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
             target = new OffscreenTarget(size);
             target.begin();
 
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
             RenderSystem.enableDepthTest();
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderSystem.setProjectionMatrix(
-                    Matrix4f.orthographic(0.0F, size, 0.0F, size, 1000.0F, 3000.0F));
+            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+            // 实体渲染按左下原点建模，这里用 y 向上的投影，读取像素时再做上下翻转。
+            ItemIconRenderer.setProjection(size, false);
 
             // 独立缓冲区：共享的 GUI 缓冲区里还有待提交的 HUD 顶点，
             // 一起冲进来会在图标边角留下碎片。
@@ -264,8 +265,9 @@ public final class EntityIconRenderer {
             PoseStack pose = new PoseStack();
             pose.pushPose();
             pose.translate(tx, ty, 0.0F);
-            pose.scale(scale, -scale, scale);
-            mc.getEntityRenderDispatcher().render(entity, 0.0, 0.0, 0.0, entity.getYRot(), 0.0F, pose,
+            // 投影已经是 y 向上，读取像素时又做了一次行翻转，这里不能再翻 y，否则图标上下颠倒。
+            pose.scale(scale, scale, scale);
+            mc.getEntityRenderDispatcher().render(entity, 0.0, 0.0, 0.0, entity.yRot, 0.0F, pose,
                     buffers, 0xF000F0);
             buffers.endBatch();
             pose.popPose();
@@ -285,10 +287,8 @@ public final class EntityIconRenderer {
             }
             Minecraft main = Minecraft.getInstance();
             main.getMainRenderTarget().bindWrite(true);
-            if (previousProjection != null) {
-                RenderSystem.setProjectionMatrix(previousProjection);
-            }
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            ItemIconRenderer.restoreProjection(main);
+            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
         }
     }
 }

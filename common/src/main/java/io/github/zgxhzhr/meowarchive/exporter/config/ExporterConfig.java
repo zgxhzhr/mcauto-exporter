@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class ExporterConfig {
@@ -17,8 +19,8 @@ public final class ExporterConfig {
     private static ExporterConfig instance;
 
     public String outputDir = "meowarchive-export";
-    public List<String> targets = new ArrayList<>(List.of("items", "blocks", "entities", "effects"));
-    public List<Integer> sizes = new ArrayList<>(List.of(32, 128));
+    public List<String> targets = new ArrayList<>(Arrays.asList("items", "blocks", "entities", "effects"));
+    public List<Integer> sizes = new ArrayList<>(Arrays.asList(32, 128));
     public String effectNeutral = "BUFF";
     public boolean embedIcons = true;
 
@@ -34,7 +36,7 @@ public final class ExporterConfig {
         ExporterConfig cfg = new ExporterConfig();
         if (Files.isRegularFile(path)) {
             try {
-                String text = Files.readString(path, StandardCharsets.UTF_8);
+                String text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
                 ExporterConfig read = GSON.fromJson(text, ExporterConfig.class);
                 if (read != null) {
                     cfg = read;
@@ -44,10 +46,10 @@ public final class ExporterConfig {
             }
         }
         if (cfg.targets == null || cfg.targets.isEmpty()) {
-            cfg.targets = new ArrayList<>(List.of("items", "blocks", "entities", "effects"));
+            cfg.targets = new ArrayList<>(Arrays.asList("items", "blocks", "entities", "effects"));
         }
         if (cfg.sizes == null || cfg.sizes.isEmpty()) {
-            cfg.sizes = new ArrayList<>(List.of(32, 128));
+            cfg.sizes = new ArrayList<>(Arrays.asList(32, 128));
         }
         instance = cfg;
         save();
@@ -57,14 +59,14 @@ public final class ExporterConfig {
         try {
             Path path = configPath();
             Files.createDirectories(path.getParent());
-            Files.writeString(path, GSON.toJson(get()), StandardCharsets.UTF_8);
+            Files.write(path, GSON.toJson(get()).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             ExporterLog.LOG.warn("保存配置失败: {}", e.toString());
         }
     }
 
     public Path outputPath() {
-        Path p = Path.of(outputDir);
+        Path p = Paths.get(outputDir);
         if (p.isAbsolute()) {
             return p;
         }

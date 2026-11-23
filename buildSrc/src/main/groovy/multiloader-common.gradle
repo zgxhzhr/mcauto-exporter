@@ -7,10 +7,15 @@ base {
     archivesName = "${mod_id}-${project.name}-${minecraft_version}"
 }
 
+// 1.16.5 需要 Java 8 字节码；本机没有 JDK 8，用 JDK 17 的 --release 8 输出，
+// 既保证字节码版本，也保证不会误用 Java 8 之后才有的 API。
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(java_version)
     withSourcesJar()
     withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = java_version.toInteger()
 }
 
 repositories {

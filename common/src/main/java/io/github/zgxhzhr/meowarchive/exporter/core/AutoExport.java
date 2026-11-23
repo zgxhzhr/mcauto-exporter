@@ -37,7 +37,7 @@ public final class AutoExport {
         if (!loaded) {
             load();
         }
-        if (namespace.isBlank()) {
+        if (namespace.trim().isEmpty()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
@@ -103,7 +103,7 @@ public final class AutoExport {
      * 全程无输入，供无人值守导出使用。
      */
     private static void launchWorldIfConfigured(Minecraft mc) {
-        if (world.isBlank() || worldRequested) {
+        if (world.trim().isEmpty() || worldRequested) {
             return;
         }
         if (!(mc.screen instanceof net.minecraft.client.gui.screens.TitleScreen)) {
@@ -119,8 +119,8 @@ public final class AutoExport {
                 mc.loadLevel(world);
             } else {
                 ExporterLog.LOG.info("自动创建世界：{}", world);
-                net.minecraft.core.RegistryAccess.Frozen access =
-                        net.minecraft.core.RegistryAccess.BUILTIN.get();
+                net.minecraft.core.RegistryAccess.RegistryHolder access =
+                        net.minecraft.core.RegistryAccess.builtin();
                 net.minecraft.world.level.LevelSettings settings =
                         new net.minecraft.world.level.LevelSettings(
                                 world,
@@ -133,7 +133,10 @@ public final class AutoExport {
                                         java.util.Collections.singletonList("vanilla"),
                                         java.util.Collections.emptyList()));
                 mc.createLevel(world, settings, access,
-                        net.minecraft.world.level.levelgen.WorldGenSettings.makeDefault(access));
+                        net.minecraft.world.level.levelgen.WorldGenSettings.makeDefault(
+                                access.registryOrThrow(net.minecraft.core.Registry.DIMENSION_TYPE_REGISTRY),
+                                access.registryOrThrow(net.minecraft.core.Registry.BIOME_REGISTRY),
+                                access.registryOrThrow(net.minecraft.core.Registry.NOISE_GENERATOR_SETTINGS_REGISTRY)));
             }
         } catch (Throwable t) {
             ExporterLog.LOG.error("自动进入世界失败: {}", t.toString());
@@ -162,7 +165,8 @@ public final class AutoExport {
         Path path = Services.PLATFORM.gameDir().resolve("config").resolve("meowarchive-auto.json");
         if (Files.isRegularFile(path)) {
             try {
-                JsonObject json = GSON.fromJson(Files.readString(path, StandardCharsets.UTF_8), JsonObject.class);
+                JsonObject json = GSON.fromJson(
+                        new String(Files.readAllBytes(path), StandardCharsets.UTF_8), JsonObject.class);
                 if (json != null) {
                     namespace = json.has("namespace") ? json.get("namespace").getAsString() : "";
                     world = json.has("world") ? json.get("world").getAsString() : "";
@@ -176,18 +180,18 @@ public final class AutoExport {
             }
         }
         String prop = System.getProperty("meowarchive.autoNamespace", "");
-        if (!prop.isBlank()) {
+        if (!prop.trim().isEmpty()) {
             namespace = prop;
             exitWhenDone = Boolean.getBoolean("meowarchive.autoExit");
         }
         String timeoutProp = System.getProperty("meowarchive.autoTimeoutSeconds", "");
-        if (!timeoutProp.isBlank()) {
+        if (!timeoutProp.trim().isEmpty()) {
             try {
                 timeoutSeconds = Math.max(10, Integer.parseInt(timeoutProp.trim()));
             } catch (NumberFormatException ignored) {
             }
         }
-        if (!namespace.isBlank()) {
+        if (!namespace.trim().isEmpty()) {
             ExporterLog.LOG.info("自动导出已配置：namespace={}, exit={}, timeout={}s",
                     namespace, exitWhenDone, timeoutSeconds);
         }

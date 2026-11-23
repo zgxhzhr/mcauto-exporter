@@ -1,47 +1,81 @@
 plugins {
-    id 'multiloader-loader'
-    id 'net.neoforged.moddev.legacyforge'
+    id 'multiloader-common'
+    id 'net.minecraftforge.gradle'
 }
 
-legacyForge {
-    version = "${minecraft_version}-${forge_version}"
+version = project.version
+group = project.group
 
-    validateAccessTransformers = true
+// ForgeGradle 6 在 1.16.5 只提供 MCP 类名（成员名与 mojmap 一致）。
+// common/fabric 使用官方映射编译，这里在构建时把 common 源码机械替换成 MCP 类名，
+// 保证同一份源码同时服务两侧，避免复制维护。
+def mappingsFile = rootProject.file('gradle/mappings/mojmap-to-mcp.properties')
+def generatedCommon = layout.buildDirectory.dir('generated/common-mcp/java')
 
-    def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
-    if (at.exists()) {
-        accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
-    }
-    runs {
-        client {
-            client()
-            if (project.hasProperty('joinServer')) {
-                programArguments.addAll '--server', project.property('joinServer').toString(),
-                        '--port', project.findProperty('joinPort') ?: '25565'
+def transformCommon = tasks.register('transformCommonSources') {
+    inputs.files(fileTree('../common/src/main/java') { include '**/*.java' })
+    inputs.file(mappingsFile)
+    outputs.dir(generatedCommon)
+    doLast {
+        def props = new Properties()
+        mappingsFile.withInputStream { props.load(it) }
+        def fqn = []
+        def simple = []
+        props.each { k, v ->
+            def parts = v.split('\\|')
+            if (k.toString().startsWith('fqn.')) {
+                fqn << [parts[0], parts[1]]
+            } else if (k.toString().startsWith('simple.')) {
+                simple << [parts[0], parts[1]]
             }
         }
-        data {
-            data()
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
-        }
-        server {
-            server()
-        }
-    }
-
-    mods {
-        "${mod_id}" {
-            sourceSet sourceSets.main
+        fqn.sort { a, b -> b[0].length() <=> a[0].length() }
+        def outDir = generatedCommon.get().asFile
+        delete outDir
+        def srcRoot = file('../common/src/main/java').toPath()
+        fileTree('../common/src/main/java') { include '**/*.java' }.each { src ->
+            def rel = srcRoot.relativize(src.toPath()).toString()
+            def text = src.getText('UTF-8')
+            fqn.each { pair -> text = text.replace(pair[0], pair[1]) }
+            simple.each { pair ->
+                text = text.replaceAll('(?<![A-Za-z0-9_])' + java.util.regex.Pattern.quote(pair[0]) + '(?![A-Za-z0-9_])', pair[1])
+            }
+            def target = new File(outDir, rel)
+            target.parentFile.mkdirs()
+            target.setText(text, 'UTF-8')
         }
     }
 }
 
-sourceSets.main.resources.srcDir 'src/generated/resources'
+sourceSets.main.java.srcDir(generatedCommon)
+sourceSets.main.resources.srcDir('../common/src/main/resources')
+tasks.named('compileJava') { dependsOn transformCommon }
+tasks.named('sourcesJar') { dependsOn transformCommon }
+tasks.named('javadoc') { dependsOn transformCommon }
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+        }
+        server {
+            workingDirectory project.file('run')
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
 
 dependencies {
-    compileOnly project(":common")
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    compileOnly 'org.slf4j:slf4j-api:1.7.30'
 }
 
 jar {
-    finalizedBy('reobfJar')
+    finalizedBy 'reobfJar'
 }
