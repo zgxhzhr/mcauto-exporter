@@ -4,3 +4,11 @@ plugins {
     // see https://projects.neoforged.net/neoforged/moddevgradle for new versions
     id 'net.neoforged.moddev' version '2.0.147' apply false
 }
+
+subprojects {
+    // 源码含中文注释，javadoc 需要显式 UTF-8，否则 Windows 默认编码会让构建失败
+    tasks.withType(Javadoc).configureEach {
+        options.encoding = 'UTF-8'
+        options.charSet = 'UTF-8'
+    }
+}
