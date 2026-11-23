@@ -105,7 +105,8 @@ public final class LmsWriter {
 
     private static List<Target> sorted(List<Target> targets) {
         List<Target> copy = new ArrayList<>(targets);
-        copy.sort(Comparator.comparing(t -> t.id.toString()));
+        copy.sort(Comparator.comparing((Target t) -> t.id.toString())
+                .thenComparingInt(t -> t.stack == null ? 0 : t.stack.getMetadata()));
         return copy;
     }
 
@@ -133,8 +134,11 @@ public final class LmsWriter {
         o.addProperty("name", displayName(t));
         o.addProperty("englishName", t.nameEn);
         o.addProperty("registerName", t.id.toString());
+        o.addProperty("metadata", t.stack.getMetadata());
         o.addProperty("type", t.stack.getItem() instanceof ItemBlock ? "Block" : "Item");
         o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
+        // IRR 系流水线读 maxStackSize，这里同时输出一份别名；maxStacksSize 仍是正式字段
+        o.addProperty("maxStackSize", t.stack.getMaxStackSize());
         o.addProperty("maxDurability", t.stack.getMaxDamage());
         o.addProperty("CreativeTabName", t.creativeTab);
         o.addProperty("OredictList", t.tags);

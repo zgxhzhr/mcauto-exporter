@@ -31,6 +31,9 @@ public final class AutoExport {
     private static int menuTicks;
     private static long finishedAt;
     private static int waitTicks;
+    /** 无人值守流程的硬上限：超过后无论导出是否完成都收尾，避免客户端永远卡住。 */
+    private static long deadline;
+    private static int timeoutSeconds = 600;
 
     private AutoExport() {
     }
@@ -43,12 +46,29 @@ public final class AutoExport {
             return;
         }
         Minecraft mc = Minecraft.getMinecraft();
+        if (deadline == 0L) {
+            deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        }
+        if (!finished && System.currentTimeMillis() > deadline) {
+            ExporterLog.LOG.warn("自动导出超时（{} 秒），强制收尾：started={}, running={}",
+                    timeoutSeconds, started, ExportService.get().isRunning());
+            writeTimeoutStatus();
+            finish();
+            return;
+        }
         if (!started) {
             if (mc.world == null) {
                 launchWorldIfConfigured(mc);
                 return;
             }
-            if (mc.player == null || mc.currentScreen != null) {
+            if (mc.player == null) {
+                return;
+            }
+            if (mc.currentScreen != null) {
+                // 失焦自动暂停会弹开游戏菜单并把集成服务器暂停，这里主动关掉，保证导出能继续
+                if (mc.currentScreen instanceof net.minecraft.client.gui.GuiIngameMenu) {
+                    mc.displayGuiScreen(null);
+                }
                 return;
             }
             if (++waitTicks < 40) {
@@ -78,9 +98,57 @@ public final class AutoExport {
         }
     }
 
+    /** 一次性诊断：确认资源管理器对各资源路径的可见性差异（定位语言文件读不到的原因）。 */
+    private static void probeResources(Minecraft mc) {
+        try {
+            java.util.List<String> domains = new java.util.ArrayList<>(
+                    mc.getResourceManager().getResourceDomains());
+            ExporterLog.LOG.info("PROBE domains={} hasMeow={}", domains.size(),
+                    domains.contains("meowarchive"));
+        } catch (Throwable e) {
+            ExporterLog.LOG.info("PROBE domains error: {}", e.toString());
+        }
+        probeOne(mc, "models/item/miao_wu_ji.json");
+        probeOne(mc, "textures/items/miao_wu_ji.png");
+        probeOne(mc, "lang/zh_cn.lang");
+        try {
+            ExporterLog.LOG.info("PROBE i18n={}", net.minecraft.util.text.translation.I18n
+                    .translateToLocal("item.meowarchive.miao_wu_ji.name"));
+        } catch (Throwable e) {
+            ExporterLog.LOG.info("PROBE i18n error: {}", e.toString());
+        }
+    }
+
+    private static void probeOne(Minecraft mc, String path) {
+        try {
+            boolean ok = mc.getResourceManager().getResource(
+                    new net.minecraft.util.ResourceLocation("meowarchive", path)) != null;
+            ExporterLog.LOG.info("PROBE {} -> {}", path, ok);
+        } catch (Throwable e) {
+            ExporterLog.LOG.info("PROBE {} error: {}", path, e.toString());
+        }
+    }
+
     private static void finish() {
         finished = true;
         finishedAt = System.currentTimeMillis();
+    }
+
+    /** 超时时补一份 FAILED 状态，外部自动化流程读取 status.json 即可判定失败，而不是无期限等待。 */
+    private static void writeTimeoutStatus() {
+        try {
+            JsonObject o = new JsonObject();
+            o.addProperty("state", "FAILED");
+            o.addProperty("message", "自动导出超时（" + timeoutSeconds + " 秒）"
+                    + (started ? "，导出未能在时限内完成" : "，未能进入世界或启动导出"));
+            o.addProperty("timeoutSeconds", timeoutSeconds);
+            o.addProperty("started", started);
+            Path dir = io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig.get().outputPath();
+            Files.createDirectories(dir);
+            Files.write(dir.resolve("status.json"), GSON.toJson(o).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            ExporterLog.LOG.warn("写入超时状态失败: {}", e.toString());
+        }
     }
 
     /** 配置了 world 且停在主菜单时，自动创建（不存在则新建）并进入该存档，全程创造模式避免被打断。 */
@@ -111,6 +179,9 @@ public final class AutoExport {
                     namespace = json.has("namespace") ? json.get("namespace").getAsString() : "";
                     world = json.has("world") ? json.get("world").getAsString() : "";
                     exitWhenDone = json.has("exitWhenDone") && json.get("exitWhenDone").getAsBoolean();
+                    if (json.has("timeoutSeconds")) {
+                        timeoutSeconds = Math.max(10, json.get("timeoutSeconds").getAsInt());
+                    }
                 }
             } catch (Exception e) {
                 ExporterLog.LOG.warn("读取 meowarchive-auto.json 失败: {}", e.toString());
@@ -121,8 +192,16 @@ public final class AutoExport {
             namespace = prop;
             exitWhenDone = Boolean.getBoolean("meowarchive.autoExit");
         }
+        String timeoutProp = System.getProperty("meowarchive.autoTimeoutSeconds", "");
+        if (!timeoutProp.isEmpty()) {
+            try {
+                timeoutSeconds = Math.max(10, Integer.parseInt(timeoutProp.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
         if (!namespace.isEmpty()) {
-            ExporterLog.LOG.info("自动导出已配置：namespace={}, exit={}", namespace, exitWhenDone);
+            ExporterLog.LOG.info("自动导出已配置：namespace={}, exit={}, timeout={}s",
+                    namespace, exitWhenDone, timeoutSeconds);
         }
     }
 }

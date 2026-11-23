@@ -32,8 +32,8 @@ public final class PreviewWriter {
 
     private static final String FIELDS =
             "<table><tbody>\n"
-                    + "<tr><th>物品/方块</th><td>name、englishName、registerName、type、maxStacksSize、"
-                    + "maxDurability、CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>\n"
+                    + "<tr><th>物品/方块</th><td>name、englishName、registerName、metadata、type、maxStacksSize、"
+                    + "maxStackSize、maxDurability、CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>\n"
                     + "<tr><th>实体</th><td>name、Englishname、mod、registerName、Icon、IconSmall、iconSource、"
                     + "noVisual、suspect、renderer、kind</td></tr>\n"
                     + "<tr><th>效果</th><td>name、Englishname、mod、registerName、category、effectCategory、color、"
@@ -60,7 +60,16 @@ public final class PreviewWriter {
                 @Override
                 public int compare(Target a, Target b) {
                     int kind = a.kind.compareTo(b.kind);
-                    return kind != 0 ? kind : a.id.toString().compareTo(b.id.toString());
+                    if (kind != 0) {
+                        return kind;
+                    }
+                    int id = a.id.toString().compareTo(b.id.toString());
+                    if (id != 0) {
+                        return id;
+                    }
+                    int ma = a.stack == null ? 0 : a.stack.getMetadata();
+                    int mb = b.stack == null ? 0 : b.stack.getMetadata();
+                    return Integer.compare(ma, mb);
                 }
             });
             Path dir = root.resolve(ns);
@@ -163,9 +172,11 @@ public final class PreviewWriter {
 
     private static String meta(Target t) {
         if (t.kind == Target.Kind.ITEM) {
-            return String.format("%s · %s · 堆叠 %d · 耐久 %d · 创造栏 %s",
+            int metadata = t.stack.getMetadata();
+            return String.format("%s · %s%s · 堆叠 %d · 耐久 %d · 创造栏 %s",
                     t.stack.getItem() instanceof ItemBlock ? "Block" : "Item",
-                    t.id, t.stack.getMaxStackSize(), t.stack.getMaxDamage(),
+                    t.id, metadata == 0 ? "" : " · 元数据 " + metadata,
+                    t.stack.getMaxStackSize(), t.stack.getMaxDamage(),
                     t.creativeTab.isEmpty() ? "未知" : t.creativeTab);
         }
         if (t.kind == Target.Kind.ENTITY) {
@@ -188,8 +199,10 @@ public final class PreviewWriter {
         }
         o.addProperty("registerName", t.id.toString());
         if (t.kind == Target.Kind.ITEM) {
+            o.addProperty("metadata", t.stack.getMetadata());
             o.addProperty("type", t.stack.getItem() instanceof ItemBlock ? "Block" : "Item");
             o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
+            o.addProperty("maxStackSize", t.stack.getMaxStackSize());
             o.addProperty("maxDurability", t.stack.getMaxDamage());
             o.addProperty("CreativeTabName", t.creativeTab);
             o.addProperty("OredictList", t.tags);

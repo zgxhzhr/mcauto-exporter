@@ -167,7 +167,7 @@ public final class ExportService {
                 target.suspectReason = "sprite-upscale-blur";
             }
             if (target.suspect) {
-                suspectTargets.put(target.id.toString(), target.suspectReason);
+                suspectTargets.put(target.uid(), target.suspectReason);
             }
         }
         if (target.kind == Target.Kind.ENTITY) {
@@ -181,20 +181,20 @@ public final class ExportService {
             }
             if (!target.icons.containsKey(128)) {
                 target.noVisual = true;
-                noVisualTargets.put(target.id.toString(), "离屏渲染为空");
+                noVisualTargets.put(target.uid(), "离屏渲染为空");
             } else {
                 int colors = ImageUtil.colorCount(target.icons.get(128));
                 if (colors <= 2) {
                     target.suspect = true;
                     target.suspectReason = "flat-color";
-                    suspectTargets.put(target.id.toString(), target.suspectReason);
+                    suspectTargets.put(target.uid(), target.suspectReason);
                 }
             }
         }
         if (!any && target.kind == Target.Kind.ITEM) {
-            failures.put(target.id.toString(), "渲染为空");
-            log.add("渲染为空：" + target.id);
-            ExporterLog.LOG.warn("渲染为空：{}", target.id);
+            failures.put(target.uid(), "渲染为空");
+            log.add("渲染为空：" + target.uid());
+            ExporterLog.LOG.warn("渲染为空：{}", target.uid());
         }
         index++;
         if (targetDone()) {
@@ -218,12 +218,16 @@ public final class ExportService {
         try {
             Path dir = output.resolve(target.namespace()).resolve("icons");
             Files.createDirectories(dir);
-            Path file = dir.resolve(target.path() + "_" + size + ".png");
+            // 元数据子类型要带后缀，否则同注册名的变体会互相覆盖图标
+            String suffix = target.kind == Target.Kind.ITEM && target.stack.getMetadata() != 0
+                    ? "_" + target.stack.getMetadata()
+                    : "";
+            Path file = dir.resolve(target.path() + suffix + "_" + size + ".png");
             Files.write(file, ImageUtil.png(image));
             return true;
         } catch (IOException e) {
-            failures.putIfAbsent(target.id.toString(), "写图失败：" + e.getMessage());
-            log.add("写图失败：" + target.id + "：" + e.getMessage());
+            failures.putIfAbsent(target.uid(), "写图失败：" + e.getMessage());
+            log.add("写图失败：" + target.uid() + "：" + e.getMessage());
             return false;
         }
     }

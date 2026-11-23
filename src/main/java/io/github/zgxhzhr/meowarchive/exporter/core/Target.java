@@ -70,6 +70,13 @@ public final class Target {
         return id.getResourcePath();
     }
 
+    /** 日志与失败统计的唯一键：低版本元数据变体附在注册名后，避免同名条目互相覆盖。 */
+    public String uid() {
+        return stack != null && stack.getMetadata() != 0
+                ? id.toString() + "#" + stack.getMetadata()
+                : id.toString();
+    }
+
     public String namespace() {
         return id.getResourceDomain();
     }
