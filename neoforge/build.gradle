@@ -18,6 +18,9 @@ neoForge {
         client {
             client()
             gameDirectory = this.mkdir(this.file('runs/client'))
+            if (project.hasProperty('quickWorld')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quickWorld').toString()
+            }
         }
         data {
             clientData()
