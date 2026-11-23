@@ -1,11 +1,13 @@
 package io.github.zgxhzhr.meowarchive.exporter.scan;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.language.ClientLanguage;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
@@ -14,11 +16,12 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public final class RegistryScanner {
+    private static final Gson GSON = new Gson();
     private static Map<Item, String> creativeTabs;
 
     private RegistryScanner() {
@@ -36,8 +40,8 @@ public final class RegistryScanner {
         LanguagePair lang = loadLanguages();
         List<Target> out = new ArrayList<>();
         if (request.kinds.contains(Target.Kind.ITEM)) {
-            for (Item item : BuiltInRegistries.ITEM) {
-                ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+            for (Item item : Registry.ITEM) {
+                ResourceLocation id = Registry.ITEM.getKey(item);
                 if (item == Items.AIR || !request.namespaces.contains(id.getNamespace())) {
                     continue;
                 }
@@ -53,8 +57,8 @@ public final class RegistryScanner {
             }
         }
         if (request.kinds.contains(Target.Kind.EFFECT)) {
-            for (MobEffect effect : BuiltInRegistries.MOB_EFFECT) {
-                ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect);
+            for (MobEffect effect : Registry.MOB_EFFECT) {
+                ResourceLocation id = Registry.MOB_EFFECT.getKey(effect);
                 if (!request.namespaces.contains(id.getNamespace())) {
                     continue;
                 }
@@ -70,15 +74,15 @@ public final class RegistryScanner {
             if (mc.level == null) {
                 throw new IllegalStateException("导出实体需要先进入世界");
             }
-            for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
-                ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+            for (EntityType<?> type : Registry.ENTITY_TYPE) {
+                ResourceLocation id = Registry.ENTITY_TYPE.getKey(type);
                 if (!request.namespaces.contains(id.getNamespace())) {
                     continue;
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
                 if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
-                    // 技术性实体（无中文也无英文名），不参与导出
+                    // 技术性实体（中英文名都缺失），不参与导出
                     continue;
                 }
                 t.entityCategory = type.getCategory().name();
@@ -111,16 +115,14 @@ public final class RegistryScanner {
         t.nameEn = resolve(lang.en, descId);
     }
 
-    private static String resolve(ClientLanguage language, String key) {
+    private static String resolve(Map<String, String> language, String key) {
         if (language == null) {
             return "";
         }
-        String value = language.getOrDefault(key);
-        if (value == null || value.equals(key) || value.startsWith("item.") || value.startsWith("entity.")
-                || value.startsWith("effect.")) {
-            String alternate = language.getOrDefault(key + ".name");
-            if (alternate != null && !alternate.equals(key + ".name") && !alternate.startsWith("item.")
-                    && !alternate.startsWith("entity.") && !alternate.startsWith("effect.")) {
+        String value = language.get(key);
+        if (value == null || value.equals(key)) {
+            String alternate = language.get(key + ".name");
+            if (alternate != null && !alternate.equals(key + ".name")) {
                 return alternate;
             }
             return "";
@@ -128,35 +130,49 @@ public final class RegistryScanner {
         return value;
     }
 
+    /**
+     * 1.19.2 没有按语言代码加载整张语言表的公开接口，
+     * 这里直接从资源包读取各命名空间的 lang 文件合并成表。
+     */
     private static LanguagePair loadLanguages() {
         LanguagePair pair = new LanguagePair();
+        pair.zh = loadLanguage("zh_cn");
+        pair.en = loadLanguage("en_us");
+        return pair;
+    }
+
+    private static Map<String, String> loadLanguage(String code) {
+        Map<String, String> out = new HashMap<>();
         try {
             var rm = Minecraft.getInstance().getResourceManager();
-            pair.zh = ClientLanguage.loadFrom(rm, List.of("zh_cn"), false);
-            pair.en = ClientLanguage.loadFrom(rm, List.of("en_us"), false);
+            var files = rm.listResources("lang", loc -> loc.getPath().equals("lang/" + code + ".json"));
+            for (var entry : files.entrySet()) {
+                try (var in = entry.getValue().open()) {
+                    JsonObject json = GSON.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
+                    if (json == null) {
+                        continue;
+                    }
+                    for (var field : json.entrySet()) {
+                        if (field.getValue().isJsonPrimitive()) {
+                            out.put(field.getKey(), field.getValue().getAsString());
+                        }
+                    }
+                } catch (Throwable ignored) {
+                    // 单个语言文件损坏不影响其它命名空间
+                }
+            }
         } catch (Throwable e) {
-            ExporterLog.LOG.warn("语言表加载失败: {}", e.toString());
+            ExporterLog.LOG.warn("语言表加载失败 {}: {}", code, e.toString());
         }
-        return pair;
+        return out;
     }
 
     private static String creativeTab(Item item, Minecraft mc) {
         if (creativeTabs == null) {
             creativeTabs = new HashMap<>();
-            // 原版只在打开创造模式物品栏时才构建标签页内容，自动导出前先手动构建一次
-            try {
-                if (mc.level != null && mc.player != null) {
-                    CreativeModeTabs.tryRebuildTabContents(
-                            mc.level.enabledFeatures(),
-                            mc.player.canUseGameMasterBlocks(),
-                            mc.level.registryAccess());
-                }
-            } catch (Throwable e) {
-                ExporterLog.LOG.warn("构建创造模式标签页失败: {}", e.toString());
-            }
-            for (CreativeModeTab tab : BuiltInRegistries.CREATIVE_MODE_TAB) {
+            for (CreativeModeTab tab : CreativeModeTab.TABS) {
                 // 搜索页包含所有物品，会把真实分类覆盖掉
-                if (tab.getType() == CreativeModeTab.Type.SEARCH) {
+                if (tab == null || tab == CreativeModeTab.TAB_SEARCH) {
                     continue;
                 }
                 String name;
@@ -165,12 +181,15 @@ public final class RegistryScanner {
                 } catch (Throwable e) {
                     name = "未知";
                 }
+                NonNullList<ItemStack> items = NonNullList.create();
                 try {
-                    for (ItemStack stack : tab.getDisplayItems()) {
-                        creativeTabs.putIfAbsent(stack.getItem(), name);
-                    }
+                    tab.fillItemList(items);
                 } catch (Throwable e) {
                     ExporterLog.LOG.warn("读取标签页 {} 失败: {}", name, e.toString());
+                    continue;
+                }
+                for (ItemStack stack : items) {
+                    creativeTabs.putIfAbsent(stack.getItem(), name);
                 }
             }
         }
@@ -178,7 +197,7 @@ public final class RegistryScanner {
     }
 
     private static final class LanguagePair {
-        ClientLanguage zh;
-        ClientLanguage en;
+        Map<String, String> zh;
+        Map<String, String> en;
     }
 }

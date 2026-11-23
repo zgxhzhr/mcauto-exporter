@@ -1,19 +1,13 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexSorting;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
-import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.system.MemoryUtil;
+import com.mojang.math.Matrix4f;
 
 import java.awt.image.BufferedImage;
-import java.nio.ByteBuffer;
 
 /**
  * 物品 / 方块物品图标：GUI 阶段离屏渲染，走原版物品栏管线。
@@ -27,75 +21,44 @@ public final class ItemIconRenderer {
         if (stack.isEmpty()) {
             return null;
         }
-        TextureTarget target = null;
-        ByteBuffer buffer = null;
+        OffscreenTarget target = null;
+        Matrix4f previousProjection = null;
         try {
-            target = new TextureTarget(size, size, true, Minecraft.ON_OSX);
-            target.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            target.clear(Minecraft.ON_OSX);
-            target.bindWrite(true);
+            // 上一轮可能还有未提交的批次，先冲到当前主目标，避免串进本次离屏纹理
+            mc.renderBuffers().bufferSource().endBatch();
+            previousProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
+            target = new OffscreenTarget(size);
+            target.begin();
 
-            RenderSystem.clearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0F, size, size, 0.0F, 1000.0F, 21000.0F),
-                    VertexSorting.ORTHOGRAPHIC_Z);
+                    Matrix4f.orthographic(0.0F, size, 0.0F, size, 1000.0F, 3000.0F));
 
-            GuiGraphics graphics = new GuiGraphics(mc, mc.renderBuffers().bufferSource());
-            PoseStack pose = graphics.pose();
-            pose.pushPose();
-            // 1.21.1 的 GUI modelview 已由 GameRenderer 平移 -11000，这里不能再加
-            pose.translate(size / 2.0F, size / 2.0F, 0.0F);
-            pose.scale(size / 16.0F, size / 16.0F, 1.0F);
-            graphics.renderItem(stack, -8, -8);
-            graphics.flush();
-            pose.popPose();
+            // 1.19.2 的 renderGuiItem 会自己平移 / 缩放并提交批次，
+            // 这里在模型视图栈上先放大到目标尺寸，物品中心落在画布中央。
+            PoseStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushPose();
+            modelView.scale(size / 16.0F, size / 16.0F, 1.0F);
+            RenderSystem.applyModelViewMatrix();
+            mc.getItemRenderer().renderGuiItem(stack, 0, 0);
+            modelView.popPose();
+            RenderSystem.applyModelViewMatrix();
 
-            buffer = MemoryUtil.memAlloc(size * size * 4);
-            GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
-            GL11.glReadPixels(0, 0, size, size, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
-
-            BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-            byte[] row = new byte[size * 4];
-            boolean any = false;
-            for (int y = 0; y < size; y++) {
-                int srcRow = (size - 1 - y) * size * 4;
-                buffer.position(srcRow);
-                buffer.get(row);
-                for (int x = 0; x < size; x++) {
-                    int r = row[x * 4] & 0xFF;
-                    int g = row[x * 4 + 1] & 0xFF;
-                    int b = row[x * 4 + 2] & 0xFF;
-                    int a = row[x * 4 + 3] & 0xFF;
-                    if (a > 8) {
-                        any = true;
-                    }
-                    image.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
-                }
-            }
-            return any ? image : null;
+            return target.read();
         } catch (Throwable t) {
             ExporterLog.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
         } finally {
-            if (buffer != null) {
-                MemoryUtil.memFree(buffer);
-            }
             if (target != null) {
-                target.unbindWrite();
-                target.destroyBuffers();
+                target.close();
             }
             Minecraft main = Minecraft.getInstance();
             main.getMainRenderTarget().bindWrite(true);
-            RenderSystem.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0F,
-                            main.getWindow().getGuiScaledWidth(),
-                            main.getWindow().getGuiScaledHeight(),
-                            0.0F, 1000.0F, 21000.0F),
-                    VertexSorting.ORTHOGRAPHIC_Z);
+            if (previousProjection != null) {
+                RenderSystem.setProjectionMatrix(previousProjection);
+            }
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
     }

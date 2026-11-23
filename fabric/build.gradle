@@ -6,7 +6,6 @@ dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     mappings loom.layered {
         officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-${parchment_minecraft}:${parchment_version}@zip")
     }
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
@@ -26,16 +25,17 @@ loom {
             client()
             setConfigName("Fabric Client")
             ideConfigGenerated(true)
-            runDir("run")
-            if (project.hasProperty("quickWorld")) {
-                programArgs("--quickPlaySingleplayer", project.property("quickWorld").toString())
+            runDir('run')
+            if (project.hasProperty('joinServer')) {
+                programArgs '--server', project.property('joinServer').toString(),
+                        '--port', project.findProperty('joinPort') ?: '25565'
             }
         }
         server {
             server()
             setConfigName("Fabric Server")
             ideConfigGenerated(true)
-            runDir("run")
+            runDir('run')
         }
     }
 }

@@ -38,7 +38,7 @@ public final class ForgeClientEvents {
     }
 
     private static void renderGui(RenderGuiEvent.Post event) {
-        ExportService.get().onHudRender(event.getGuiGraphics());
+        ExportService.get().onHudRender(event.getPoseStack());
     }
 
     private static void registerClientCommands(RegisterClientCommandsEvent event) {

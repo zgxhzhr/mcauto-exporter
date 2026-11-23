@@ -1,8 +1,8 @@
 package io.github.zgxhzhr.meowarchive.exporter.gui;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
@@ -37,29 +37,29 @@ class WoodButton extends AbstractButton {
     }
 
     @Override
-    protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void renderButton(PoseStack pose, int mouseX, int mouseY, float partialTick) {
         boolean hovered = isHoveredOrFocused();
-        graphics.fill(getX(), getY(), getX() + width, getY() + height,
+        MeowArchiveStyle.fill(pose, this.x, this.y, this.x + width, this.y + height,
                 hovered ? MeowArchiveStyle.BUTTON_BG_HOVER : MeowArchiveStyle.BUTTON_BG);
-        graphics.renderOutline(getX(), getY(), width, height, MeowArchiveStyle.PANEL_BORDER);
+        MeowArchiveStyle.outline(pose, this.x, this.y, width, height, MeowArchiveStyle.PANEL_BORDER);
 
         Font font = Minecraft.getInstance().font;
         int color = active ? MeowArchiveStyle.TEXT_COLOR : MeowArchiveStyle.SUBTEXT_COLOR;
-        int textLeft = getX();
-        int textRight = getX() + width;
+        int textLeft = this.x;
+        int textRight = this.x + width;
         if (checkBox) {
             int size = MeowArchiveStyle.checkSize();
-            MeowArchiveStyle.checkBox(graphics, getX() + 6, getY() + (height - size) / 2, checked);
+            MeowArchiveStyle.checkBox(pose, this.x + 6, this.y + (height - size) / 2, checked);
             textLeft += 6 + size + 4;
         }
         int textWidth = font.width(getMessage());
         int tx = textLeft + (textRight - textLeft - textWidth) / 2;
-        int ty = getY() + (height - 8) / 2;
-        graphics.drawString(font, getMessage(), tx, ty, color, false);
+        int ty = this.y + (height - 8) / 2;
+        font.draw(pose, getMessage(), tx, ty, color);
     }
 
     @Override
-    protected void updateWidgetNarration(NarrationElementOutput output) {
+    public void updateNarration(NarrationElementOutput output) {
         this.defaultButtonNarrationText(output);
     }
 }

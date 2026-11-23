@@ -1,7 +1,10 @@
 package io.github.zgxhzhr.meowarchive.exporter.gui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 
 /**
  * 木头质感界面配色与绘制工具，与本机 MaidFileManager 的 UI 风格保持一致。
@@ -46,26 +49,37 @@ final class MeowArchiveStyle {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
-    static void panel(GuiGraphics graphics, int x, int y, int w, int h) {
-        graphics.fill(x, y, x + w, y + h, PANEL_BG);
-        graphics.fill(x, y, x + w, y + 1, PANEL_BORDER);
-        graphics.fill(x, y + h - 1, x + w, y + h, PANEL_BORDER);
-        graphics.fill(x, y, x + 1, y + h, PANEL_BORDER);
-        graphics.fill(x + w - 1, y, x + w, y + h, PANEL_BORDER);
-        graphics.fill(x + 1, y + 1, x + w - 1, y + 2, ACCENT);
-        graphics.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, ACCENT);
+    static void fill(PoseStack pose, int x1, int y1, int x2, int y2, int color) {
+        GuiComponent.fill(pose, x1, y1, x2, y2, color);
     }
 
-    static void separator(GuiGraphics graphics, int x1, int x2, int y) {
-        graphics.fill(x1, y, x2, y + 1, 0x55D0A060);
+    static void outline(PoseStack pose, int x, int y, int w, int h, int color) {
+        fill(pose, x, y, x + w, y + 1, color);
+        fill(pose, x, y + h - 1, x + w, y + h, color);
+        fill(pose, x, y, x + 1, y + h, color);
+        fill(pose, x + w - 1, y, x + w, y + h, color);
     }
 
-    static void checkBox(GuiGraphics graphics, int x, int y, boolean checked) {
-        graphics.fill(x, y, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_BORDER);
-        graphics.fill(x + 1, y + 1, x + CHECK_SIZE - 1, y + CHECK_SIZE - 1, CHECK_INNER);
+    static void panel(PoseStack pose, int x, int y, int w, int h) {
+        fill(pose, x, y, x + w, y + h, PANEL_BG);
+        fill(pose, x, y, x + w, y + 1, PANEL_BORDER);
+        fill(pose, x, y + h - 1, x + w, y + h, PANEL_BORDER);
+        fill(pose, x, y, x + 1, y + h, PANEL_BORDER);
+        fill(pose, x + w - 1, y, x + w, y + h, PANEL_BORDER);
+        fill(pose, x + 1, y + 1, x + w - 1, y + 2, ACCENT);
+        fill(pose, x + 1, y + h - 2, x + w - 1, y + h - 1, ACCENT);
+    }
+
+    static void separator(PoseStack pose, int x1, int x2, int y) {
+        fill(pose, x1, y, x2, y + 1, 0x55D0A060);
+    }
+
+    static void checkBox(PoseStack pose, int x, int y, boolean checked) {
+        fill(pose, x, y, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_BORDER);
+        fill(pose, x + 1, y + 1, x + CHECK_SIZE - 1, y + CHECK_SIZE - 1, CHECK_INNER);
         if (checked) {
             for (int[] p : CHECK_PIXELS) {
-                graphics.fill(x + 1 + p[0], y + 1 + p[1], x + 2 + p[0], y + 2 + p[1], CHECK_MARK);
+                fill(pose, x + 1 + p[0], y + 1 + p[1], x + 2 + p[0], y + 2 + p[1], CHECK_MARK);
             }
         }
     }
@@ -94,7 +108,19 @@ final class MeowArchiveStyle {
     }
 
     /** 无阴影居中文字：阴影会把深色底上的彩色字糊掉。 */
-    static void centered(GuiGraphics graphics, Font font, String text, int centerX, int y, int color) {
-        graphics.drawString(font, text, centerX - font.width(text) / 2, y, color, false);
+    static void centered(PoseStack pose, Font font, String text, int centerX, int y, int color) {
+        font.draw(pose, text, centerX - font.width(text) / 2.0F, y, color);
+    }
+
+    /** 列表裁剪：1.19.2 没有 GuiGraphics 的 scissor 封装，这里手动换算成窗口坐标。 */
+    static void enableScissor(Minecraft mc, int x, int y, int w, int h) {
+        double scale = mc.getWindow().getGuiScale();
+        int sx = (int) (x * scale);
+        int sy = (int) (mc.getWindow().getHeight() - (y + h) * scale);
+        RenderSystem.enableScissor(sx, sy, (int) (w * scale), (int) (h * scale));
+    }
+
+    static void disableScissor() {
+        RenderSystem.disableScissor();
     }
 }

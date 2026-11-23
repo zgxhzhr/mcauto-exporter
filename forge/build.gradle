@@ -12,15 +12,12 @@ legacyForge {
     if (at.exists()) {
         accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
     }
-    parchment {
-        minecraftVersion = parchment_minecraft
-        mappingsVersion = parchment_version
-    }
     runs {
         client {
             client()
-            if (project.hasProperty("quickWorld")) {
-                programArguments.addAll '--quickPlaySingleplayer', project.property("quickWorld").toString()
+            if (project.hasProperty('joinServer')) {
+                programArguments.addAll '--server', project.property('joinServer').toString(),
+                        '--port', project.findProperty('joinPort') ?: '25565'
             }
         }
         data {
