@@ -1,32 +1,96 @@
-# MultiLoader Template
+# Meow Archive Exporter
 
-This project provides a Gradle project template that can compile Minecraft mods for multiple modloaders using a common project for the sources. This project does not require any third party libraries or dependencies. If you have any questions or want to discuss the project, please join our [Discord](https://discord.myceliummod.network).
+Minecraft **Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
-## Getting Started
+MIT License。
 
-### IntelliJ IDEA
-This guide will show how to import the MultiLoader Template into IntelliJ IDEA. The setup process is roughly equivalent to setting up the modloaders independently and should be very familiar to anyone who has worked with their MDKs.
+## 功能
 
-1. Clone or download this repository to your computer.
-2. Configure the project by setting the properties in the `gradle.properties` file. You will also need to change the `rootProject.name`  property in `settings.gradle`, this should match the folder name of your project, or else IDEA may complain.
-3. Open the template's root folder as a new project in IDEA. This is the folder that contains this README.md file and the gradlew executable.
-4. If your default JVM/JDK is not Java 25 you will encounter an error when opening the project. This error is fixed by going to `File > Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM` and changing the value to a valid Java 25 JVM. You will also need to set the Project SDK to Java 25. This can be done by going to `File > Project Structure > Project SDK`. Once both have been set open the Gradle tab in IDEA and click the refresh button to reload the project.
-5. Open your Run/Debug Configurations. Under the `Application` category there should now be options to run Fabric and NeoForge projects. Select one of the client options and try to run it.
-6. Assuming you were able to run the game in step 5 your workspace should now be set up.
+- 物品 / 方块（BlockItem）图标：32×32、128×128，GUI 内真实渲染
+- 实体图标：128×128 离屏渲染，按模型实际像素外廓裁剪并居中，失败/空白会标记
+- 技术性实体（中英文名都缺失，如内部辅助实体）直接跳过，不写入 JSON
+- BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
+- 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
+- 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见源码注释
+- 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
+- 预览页 `<ns>/preview.html`：单文件、图标内嵌，可筛选/搜索，点卡片复制注册名
+- 失败、无可见模型与可疑条目写入 `failures.txt`，`status.json` 同步列出注册名与原因
+- 进度、日志、错误都在界面内显示
 
-### Eclipse
-While it is possible to use this template in Eclipse it is not recommended. During the development of this template multiple critical bugs and quirks related to Eclipse were found at nearly every level of the required build tools. While we continue to work with these tools to report and resolve issues support for projects like these are not there yet. For now Eclipse is considered unsupported by this project. The development cycle for build tools is notoriously slow so there are no ETAs available.
+## 使用
 
-## Development Guide
-When using this template the majority of your mod should be developed in the `common` project. The `common` project is compiled against the vanilla game and is used to hold code that is shared between the different loader-specific versions of your mod. The `common` project has no knowledge or access to ModLoader specific code, apis, or concepts. Code that requires something from a specific loader must be done through the project that is specific to that loader, such as the `fabric` or `neoforge` projects.
+1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，NeoForge 端无需额外前置。
+2. 进入一个世界。
+3. 输入 `/meowarchive` 或手持喵呜机右键打开导出器。
+4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
+5. 点「开始导出」。导出期间会自动放开鼠标，不会把光标锁在窗口里。
 
-Loader specific projects such as the `fabric` and `neoforge` project are used to load the `common` project into the game. These projects also define code that is specific to that loader. Loader specific projects can access all the code in the `common` project. It is important to remember that the `common` project can not access code from loader specific projects.
+### 四种模式
 
-## Removing Platforms and Loaders
-While this template has support for many modloaders, new loaders may appear in the future, and existing loaders may become less relevant.
+| 模式 | 行为 |
+|---|---|
+| 完整导出（JSON + 图标） | 渲染图标、写 `<namespace>/icons` PNG，并写出 JSON |
+| 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
+| 只导出图标 | 只写 `<namespace>/icons` PNG，不写 JSON |
+| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
 
-Removing loader specific projects is as easy as deleting the folder, and removing the `include("projectname")` line from the `settings.gradle` file.
-For example if you wanted to remove support for `forge` you would follow the following steps:
+### 输出
 
-1. Delete the subproject folder. For example, delete `MultiLoader-Template/forge`.
-2. Remove the project from `settings.gradle`. For example, remove `include("forge")`. 
+默认在 `.minecraft/meowarchive-export/`，可在 `config/meowarchive.json` 改 `outputDir`。
+
+```text
+meowarchive-export/
+├─ status.json
+├─ failures.txt                  失败/无可见模型/可疑明细，无异常时不生成
+└─ <namespace>/
+   ├─ <namespace>_items.json     物品，JSONL，LMS 字段
+   ├─ <namespace>_entities.json  实体，JSONL，LMS 字段
+   ├─ <namespace>_effects.json   效果，JSONL，扩展字段
+   ├─ <namespace>_all.json       合并全部条目，JSONL，含 kind 字段
+   ├─ preview.html               单文件预览页，图标内嵌
+   └─ icons/<path>_32.png
+      icons/<path>_128.png
+```
+
+## 构建
+
+需要 JDK 25。仓库采用 MultiLoader 结构，已实现 Fabric 与 NeoForge 客户端。
+
+```bash
+./gradlew :fabric:build
+./gradlew :neoforge:build
+```
+
+产物分别在 `fabric/build/libs/` 与 `neoforge/build/libs/`。
+
+开发客户端：
+
+```bash
+./gradlew :fabric:runClient
+./gradlew :neoforge:runClient
+```
+
+## 项目结构
+
+```text
+common/    与加载器无关的导出逻辑（扫描、离屏渲染、LMS 写出、界面）
+fabric/    Fabric 入口、命令、平台服务实现
+neoforge/  NeoForge 入口、命令、平台服务实现
+```
+
+图标渲染基于当前版本的提交节点管线：新建 RGBA 纹理、以正交投影提交物品/实体模型、GPU 异步回读后转 PNG；
+物品使用与物品图集一致的姿态，实体使用与实体预览（PIP）一致的姿态。
+
+## 已知限制
+
+- 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
+- 末影龙这类翼展远大于身高的实体按最长边适配，图中会偏扁。
+- 物品图标取默认 ItemStack，不导出 NBT 变体。
+- 配方、附魔暂不导出。
+
+## 许可
+
+- 本仓库代码：MIT，见 [LICENSE](LICENSE)。
+- 物品贴图 `assets/meowarchive/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
+- LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
+- Fabric API 为运行时依赖，不打包。
