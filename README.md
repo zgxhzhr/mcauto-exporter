@@ -1,24 +1,94 @@
-# MultiLoader Template
+# Meow Archive Exporter
 
-This project provides a Gradle project template that can compile mods for both Forge and Fabric using a common sourceset. This project does not require any third party libraries or dependencies. If you have any questions or want to discuss the project join our [Discord](https://discord.myceliummod.network).
+Minecraft **1.20.1 / Fabric 与 Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
-## Getting Started
+MIT License。
 
-## IntelliJ IDEA
-This guide will show how to import the MultiLoader Template into IntelliJ IDEA. The setup process is roughly equivalent to setting up Forge and Fabric independently and should be very familiar to anyone who has worked with their MDKs.
+## 功能
 
-1. Clone or download this repository to your computer.
-2. Configure the project by editing the `group`, `mod_name`, `mod_author`, and `mod_id` properties in the `gradle.properties` file. You will also need to change the `rootProject.name`  property in `settings.gradle`, this should match the folder name of your project, or else IDEA may complain.
-3. Open the template's root folder as a new project in IDEA. This is the folder that contains this README file and the gradlew executable.
-4. If your default JVM/JDK is not Java 17 you will encounter an error when opening the project. This error is fixed by going to `File > Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM`and changing the value to a valid Java 17 JVM. You will also need to set the Project SDK to Java 17. This can be done by going to `File > Project Structure > Project SDK`. Once both have been set open the Gradle tab in IDEA and click the refresh button to reload the project.
-5. Open the Gradle tab in IDEA if it has not already been opened. Navigate to `Your Project > Common > Tasks > vanilla gradle > decompile`. Run this task to decompile Minecraft.
-6. Open your Run/Debug Configurations. Under the Application category there should now be options to run Forge and Fabric projects. Select one of the client options and try to run it.
-7. Assuming you were able to run the game in step 7 your workspace should now be set up.
+- 物品 / 方块（BlockItem）图标：32×32、128×128，GUI 内真实渲染
+- 实体图标：128×128 离屏渲染，失败/空白会标记
+- 技术性实体（中英文名都缺失，如内部辅助实体）直接跳过，不写入 JSON
+- BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
+- 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
+- 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见源码注释
+- 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
+- 预览页 `<ns>/preview.html`：单文件、图标内嵌，可筛选/搜索，点卡片复制注册名
+- 失败、无可见模型与可疑条目写入 `failures.txt`，`status.json` 同步列出注册名与原因
+- 进度、日志、错误都在界面内显示
 
-### Eclipse
-While it is possible to use this template in Eclipse it is not recommended. During the development of this template multiple critical bugs and quirks related to Eclipse were found at nearly every level of the required build tools. While we continue to work with these tools to report and resolve issues support for projects like these are not there yet. For now Eclipse is considered unsupported by this project. The development cycle for build tools is notoriously slow so there are no ETAs available.
+## 使用
 
-## Development Guide
-When using this template the majority of your mod is developed in the Common project. The Common project is compiled against the vanilla game and is used to hold code that is shared between the different loader-specific versions of your mod. The Common project has no knowledge or access to ModLoader specific code, apis, or concepts. Code that requires something from a specific loader must be done through the project that is specific to that loader, such as the Forge or Fabric project.
+1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，Forge 端无需额外前置。
+2. 进入一个世界。
+3. 输入 `/meowarchive` 或按界面打开导出器。
+4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
+5. 点「开始导出」。
 
-Loader specific projects such as the Forge and Fabric project are used to load the Common project into the game. These projects also define code that is specific to that loader. Loader specific projects can access all of the code in the Common project. It is important to remember that the Common project can not access code from loader specific projects.
+### 四种模式
+
+| 模式 | 行为 |
+|---|---|
+| 完整导出（JSON + 图标） | 渲染图标、写 `<namespace>/icons` PNG，并写出 JSON |
+| 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
+| 只导出图标 | 只写 `<namespace>/icons` PNG，不写 JSON |
+| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
+
+### 输出
+
+默认在 `.minecraft/meowarchive-export/`，可在 `config/meowarchive.json` 改 `outputDir`。
+
+```text
+meowarchive-export/
+├─ status.json
+├─ failures.txt                  失败/无可见模型/可疑明细，无异常时不生成
+└─ <namespace>/
+   ├─ <namespace>_items.json     物品，JSONL，LMS 字段
+   ├─ <namespace>_entities.json  实体，JSONL，LMS 字段
+   ├─ <namespace>_effects.json   效果，JSONL，扩展字段
+   ├─ <namespace>_all.json       合并全部条目，JSONL，含 kind 字段
+   ├─ preview.html               单文件预览页，图标内嵌
+   └─ icons/<path>_32.png
+      icons/<path>_128.png
+```
+
+## 构建
+
+需要 JDK 17。仓库采用 MultiLoader 结构，已实现 Fabric 与 Forge 客户端。
+
+```bash
+./gradlew :fabric:build
+./gradlew :forge:build
+```
+
+产物分别在 `fabric/build/libs/` 与 `forge/build/libs/`。
+
+开发客户端：
+
+```bash
+./gradlew :fabric:runClient
+./gradlew :forge:runClient
+```
+
+## 项目结构
+
+```text
+common/   与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/   Fabric 入口、命令、平台服务实现
+forge/    Forge 入口、命令、平台服务实现
+```
+
+## 已知限制
+
+- 支持 1.20.1 的 Fabric 与 Forge 客户端。
+- 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
+- 物品图标取默认 ItemStack，不导出 NBT 变体。
+- 配方、附魔暂不导出。
+
+## 许可
+
+- 本仓库代码：MIT。
+- 物品贴图 `assets/meowarchive/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
+- 图标导出的「一帧一个 + GUI 阶段离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
+- LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。
+- Fabric API 为运行时依赖，不打包。

@@ -27,6 +27,9 @@ loom {
             setConfigName("Fabric Client")
             ideConfigGenerated(true)
             runDir("run")
+            if (project.hasProperty("quickWorld")) {
+                programArgs("--quickPlaySingleplayer", project.property("quickWorld").toString())
+            }
         }
         server {
             server()
