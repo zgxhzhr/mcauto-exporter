@@ -1,23 +1,29 @@
-# eclipse
-bin
-*.launch
-.settings
-.metadata
-.classpath
-.project
+# Gradle
+.gradle/
+build/
+out/
 
-# idea
-out
+# IDE
+.idea/
+*.iml
 *.ipr
 *.iws
-*.iml
-.idea/*
-!.idea/scopes
+.vscode/
+.settings/
+.classpath
+.project
+bin/
 
-# gradle
-build
-.gradle
+# ForgeGradle
+run/
+run-server/
+runs/
+logs/
 
-# other
-eclipse
-run
+# 导出产物与本地测试资源
+meowarchive-export/
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db
