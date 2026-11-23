@@ -67,7 +67,8 @@ public final class IconCapture {
             depth = device.createTexture(() -> "meowarchive icon depth", DEPTH_USAGE, TextureFormat.DEPTH32,
                     size, size, 1, 1);
             depthView = device.createTextureView(depth);
-            device.createCommandEncoder().clearColorAndDepthTextures(color, 0, depth, 0.0);
+            // 深度必须清成 1.0（最远），清 0 会让所有片元都过不了深度测试
+            device.createCommandEncoder().clearColorAndDepthTextures(color, 0, depth, 1.0);
 
             Projection projection = new Projection();
             projection.setupOrtho(-1000.0F, 1000.0F, size, size, true);
@@ -76,6 +77,8 @@ public final class IconCapture {
 
             RenderSystem.outputColorTextureOverride = colorView;
             RenderSystem.outputDepthTextureOverride = depthView;
+            // 原版 GuiItemAtlas 在绘制前会显式重置裁剪框，否则会沿用上一处 GUI 的 scissor 把画面裁空
+            RenderSystem.enableScissorForRenderTypeDraws(0, 0, size, size);
             try {
                 PoseStack pose = new PoseStack();
                 pose.translate(centerX, centerY, 0.0F);
@@ -85,7 +88,10 @@ public final class IconCapture {
                 SubmitNodeStorage nodes = dispatcher.getSubmitNodeStorage();
                 scene.submit(pose, nodes);
                 dispatcher.renderAllFeatures();
+                // 26.1.2 的提交节点最终落在 RenderBuffers 的批次里，需要显式 endBatch 才会真正绘制
+                Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             } finally {
+                RenderSystem.disableScissorForRenderTypeDraws();
                 RenderSystem.outputColorTextureOverride = null;
                 RenderSystem.outputDepthTextureOverride = null;
             }
