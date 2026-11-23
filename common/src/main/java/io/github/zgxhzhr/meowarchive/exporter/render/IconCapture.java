@@ -48,10 +48,12 @@ public final class IconCapture {
     /**
      * @param size   输出边长（像素）
      * @param scale  模型单位（方块）→ 像素的缩放
-     * @param flipY  Y 轴是否取负（与 {@link #flipZ} 配合对齐原版两套姿态）
+     * @param flipY  Y 轴是否取负（与 flipZ 配合对齐原版两套姿态）
      * @param flipZ  Z 轴是否取负（实体走原版 PIP 姿态，物品走物品图集姿态）
      * @param centerX 模型原点在纹理中的 X 位置
      * @param centerY 模型原点在纹理中的 Y 位置
+     * @param scene  往提交收集器写几何体的回调
+     * @param done   渲染结果回调（失败时为 null）
      */
     public static void renderAsync(int size, float scale, boolean flipY, boolean flipZ, float centerX, float centerY,
                                    Scene scene, Consumer<BufferedImage> done) {
