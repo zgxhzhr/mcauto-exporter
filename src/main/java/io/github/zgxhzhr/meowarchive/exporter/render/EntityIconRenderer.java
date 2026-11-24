@@ -22,7 +22,7 @@ public final class EntityIconRenderer {
     }
 
     public static BufferedImage render(Class<? extends Entity> entityClass, int size) {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         if (mc.world == null || entityClass == null) {
             return null;
         }
@@ -139,7 +139,7 @@ public final class EntityIconRenderer {
      */
     private static float resolveYaw(Entity entity) {
         try {
-            Object renderer = Minecraft.getMinecraft().getRenderManager().getEntityRenderObject(entity);
+            Object renderer = Minecraft.getInstance().getRenderManager().getEntityRenderObject(entity);
             if (renderer instanceof RenderLivingBase) {
                 return 30.0F;
             }
@@ -163,30 +163,30 @@ public final class EntityIconRenderer {
     }
 
     private static BufferedImage draw(Entity entity, int size, float yaw, float tx, float ty, float scale) {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         OffscreenTarget target = null;
         try {
             target = new OffscreenTarget(size);
             target.begin();
 
-            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+            GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
             GlStateManager.enableRescaleNormal();
-            GlStateManager.enableDepth();
+            GlStateManager.enableDepthTest();
             GlStateManager.depthFunc(GL11.GL_LEQUAL);
             GlStateManager.enableBlend();
-            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+            GlStateManager.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
                     GL11.GL_ONE, GL11.GL_ZERO);
 
             GlStateManager.pushMatrix();
-            GlStateManager.translate(tx, ty, 0.0F);
-            GlStateManager.scale(scale, -scale, scale);
+            GlStateManager.translatef(tx, ty, 0.0F);
+            GlStateManager.scalef(scale, -scale, scale);
             RenderHelper.enableStandardItemLighting();
             mc.getRenderManager().renderEntity(entity, 0.0D, 0.0D, 0.0D, yaw, 0.0F, false);
             RenderHelper.disableStandardItemLighting();
             GlStateManager.popMatrix();
 
             GlStateManager.disableRescaleNormal();
-            GlStateManager.disableDepth();
+            GlStateManager.disableDepthTest();
             return target.read();
         } catch (Throwable t) {
             ExporterLog.LOG.debug("实体离屏绘制失败: {}", t.toString());

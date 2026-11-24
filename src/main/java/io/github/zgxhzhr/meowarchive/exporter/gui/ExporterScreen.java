@@ -6,16 +6,9 @@ import io.github.zgxhzhr.meowarchive.exporter.core.ExportMode;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.util.Util;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
-import org.lwjgl.input.Mouse;
+import net.minecraftforge.registries.ForgeRegistries;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -27,7 +20,6 @@ import java.util.Set;
  *
  * <p>视觉层级：纯色底 → 木色主面板 → 分区（命名空间 / 导出选项 / 状态 / 操作）。
  */
-@SideOnly(Side.CLIENT)
 public final class ExporterScreen extends GuiScreen {
     private static final int ROW_H = 24;
     private static final int PAD = 14;
@@ -71,7 +63,8 @@ public final class ExporterScreen extends GuiScreen {
 
     @Override
     public void initGui() {
-        this.buttonList.clear();
+        this.buttons.clear();
+        this.children.clear();
         namespaces.clear();
         Set<String> contentNamespaces = contentNamespaces();
         List<String> modIds = new ArrayList<>(ClientPlatform.loadedModIds());
@@ -118,47 +111,47 @@ public final class ExporterScreen extends GuiScreen {
             }
             modeButton.setMessage(modeLabel());
         });
-        buttonList.add(modeButton);
+        addButton(modeButton);
 
         int half = (rightW - 8) / 2;
         itemsButton = new WoodButton(2, rightX, y + 25, half, 20, "物品 / 方块", () -> {
             items = !items;
             itemsButton.setChecked(items);
         }).withCheckBox(items);
-        buttonList.add(itemsButton);
+        addButton(itemsButton);
         entitiesButton = new WoodButton(3, rightX + rightW - half, y + 25, half, 20, "实体", () -> {
             entities = !entities;
             entitiesButton.setChecked(entities);
         }).withCheckBox(entities);
-        buttonList.add(entitiesButton);
+        addButton(entitiesButton);
         effectsButton = new WoodButton(4, rightX, y + 50, rightW, 20, "效果", () -> {
             effects = !effects;
             effectsButton.setChecked(effects);
         }).withCheckBox(effects);
-        buttonList.add(effectsButton);
+        addButton(effectsButton);
 
         size32Button = new WoodButton(5, rightX, y + 75, half, 20, "32×32", () -> {
             size32 = !size32;
             size32Button.setChecked(size32);
         }).withCheckBox(size32);
-        buttonList.add(size32Button);
+        addButton(size32Button);
         size128Button = new WoodButton(6, rightX + rightW - half, y + 75, half, 20, "128×128", () -> {
             size128 = !size128;
             size128Button.setChecked(size128);
         }).withCheckBox(size128);
-        buttonList.add(size128Button);
+        addButton(size128Button);
 
-        buttonList.add(new WoodButton(7, rightX, y + 100, rightW, 20, "导出单个图标…",
+        addButton(new WoodButton(7, rightX, y + 100, rightW, 20, "导出单个图标…",
                 () -> mc.displayGuiScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
 
         int gap = 8;
         int closeW = 72;
         int openW = 92;
         int startW = Math.max(90, contentRight - contentLeft - closeW - openW - gap * 2);
-        buttonList.add(new WoodButton(8, contentLeft, actionY, startW, 20, "开始导出", this::start));
-        buttonList.add(new WoodButton(9, contentLeft + startW + gap, actionY, openW, 20, "打开目录",
+        addButton(new WoodButton(8, contentLeft, actionY, startW, 20, "开始导出", this::start));
+        addButton(new WoodButton(9, contentLeft + startW + gap, actionY, openW, 20, "打开目录",
                 this::openOutput));
-        buttonList.add(new WoodButton(10, contentRight - closeW, actionY, closeW, 20, "关闭",
+        addButton(new WoodButton(10, contentRight - closeW, actionY, closeW, 20, "关闭",
                 () -> mc.displayGuiScreen(null)));
     }
 
@@ -227,19 +220,19 @@ public final class ExporterScreen extends GuiScreen {
     private Set<String> contentNamespaces() {
         Set<String> out = new HashSet<>();
         for (net.minecraft.util.ResourceLocation id : ForgeRegistries.ITEMS.getKeys()) {
-            out.add(id.getResourceDomain());
+            out.add(id.getNamespace());
         }
         for (net.minecraft.util.ResourceLocation id : ForgeRegistries.POTIONS.getKeys()) {
-            out.add(id.getResourceDomain());
+            out.add(id.getNamespace());
         }
         for (net.minecraft.util.ResourceLocation id : ForgeRegistries.ENTITIES.getKeys()) {
-            out.add(id.getResourceDomain());
+            out.add(id.getNamespace());
         }
         return out;
     }
 
     @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+    public void render(int mouseX, int mouseY, float partialTicks) {
         MeowArchiveStyle.fill(0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
         MeowArchiveStyle.panel(panelX, panelY, panelW, panelH);
 
@@ -247,16 +240,16 @@ public final class ExporterScreen extends GuiScreen {
                 MeowArchiveStyle.HEADER_COLOR);
         MeowArchiveStyle.separator(panelX + 10, panelX + panelW - 10, panelY + 25);
 
-        fontRenderer.drawString("命名空间", listX, contentTop, MeowArchiveStyle.HEADER_COLOR, false);
+        fontRenderer.drawString("命名空间", listX, contentTop, MeowArchiveStyle.HEADER_COLOR);
         String count = "已选 " + selected.size() + "/" + namespaces.size();
         fontRenderer.drawString(count, listX + listW - fontRenderer.getStringWidth(count), contentTop,
-                MeowArchiveStyle.SUBTEXT_COLOR, false);
-        fontRenderer.drawString("导出选项", rightX, contentTop, MeowArchiveStyle.HEADER_COLOR, false);
+                MeowArchiveStyle.SUBTEXT_COLOR);
+        fontRenderer.drawString("导出选项", rightX, contentTop, MeowArchiveStyle.HEADER_COLOR);
 
         renderList(mouseX, mouseY);
         renderStatus();
 
-        super.drawScreen(mouseX, mouseY, partialTicks);
+        super.render(mouseX, mouseY, partialTicks);
     }
 
     private void renderList(int mouseX, int mouseY) {
@@ -265,7 +258,7 @@ public final class ExporterScreen extends GuiScreen {
 
         if (namespaces.isEmpty()) {
             fontRenderer.drawString("没有可导出的命名空间", listX + 8, listY + 8,
-                    MeowArchiveStyle.SUBTEXT_COLOR, false);
+                    MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
 
@@ -290,9 +283,9 @@ public final class ExporterScreen extends GuiScreen {
             int textLeft = listX + 6 + MeowArchiveStyle.checkSize() + 6;
             int textW = listX + listW - 6 - textLeft;
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, entry.name, textW), textLeft,
-                    rowY + 3, on ? MeowArchiveStyle.ACCENT : MeowArchiveStyle.TEXT_COLOR, false);
+                    rowY + 3, on ? MeowArchiveStyle.ACCENT : MeowArchiveStyle.TEXT_COLOR);
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, entry.id, textW), textLeft,
-                    rowY + 13, MeowArchiveStyle.SUBTEXT_COLOR, false);
+                    rowY + 13, MeowArchiveStyle.SUBTEXT_COLOR);
         }
         MeowArchiveStyle.disableScissor();
 
@@ -314,7 +307,7 @@ public final class ExporterScreen extends GuiScreen {
         if (service.isRunning()) {
             String label = MeowArchiveStyle.clamp(fontRenderer, "导出中：" + service.currentLabel(),
                     contentRight - contentLeft);
-            fontRenderer.drawString(label, contentLeft, statusY, MeowArchiveStyle.ACCENT, false);
+            fontRenderer.drawString(label, contentLeft, statusY, MeowArchiveStyle.ACCENT);
             int barW = contentRight - contentLeft;
             MeowArchiveStyle.fill(contentLeft, statusY + 11, contentLeft + barW, statusY + 17, 0x66000000);
             int filled = service.total() == 0 ? 0
@@ -328,7 +321,7 @@ public final class ExporterScreen extends GuiScreen {
             }
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, detail,
                     contentRight - contentLeft), contentLeft, statusY + 20,
-                    MeowArchiveStyle.SUBTEXT_COLOR, false);
+                    MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
         String line;
@@ -347,40 +340,36 @@ public final class ExporterScreen extends GuiScreen {
             color = MeowArchiveStyle.SUBTEXT_COLOR;
         }
         fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, line, contentRight - contentLeft),
-                contentLeft, statusY, color, false);
+                contentLeft, statusY, color);
         fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer,
                 "输出：" + ExporterConfig.get().outputPath(), contentRight - contentLeft),
-                contentLeft, statusY + 11, MeowArchiveStyle.SUBTEXT_COLOR, false);
+                contentLeft, statusY + 11, MeowArchiveStyle.SUBTEXT_COLOR);
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws java.io.IOException {
+    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         if (mouseButton == 0 && MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
-            int row = (mouseY - listY) / ROW_H;
+            int row = (int) ((mouseY - listY) / ROW_H);
             int idx = scroll + row;
             if (idx < namespaces.size()) {
                 String id = namespaces.get(idx).id;
                 if (!selected.remove(id)) {
                     selected.add(id);
                 }
-                return;
+                return true;
             }
         }
-        super.mouseClicked(mouseX, mouseY, mouseButton);
+        return super.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
     @Override
-    public void handleMouseInput() throws java.io.IOException {
-        super.handleMouseInput();
-        int delta = Mouse.getEventDWheel();
+    public boolean mouseScrolled(double delta) {
         if (delta != 0 && namespaces.size() > visibleRows) {
-            int mouseX = Mouse.getEventX() * width / mc.displayWidth;
-            int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-            if (MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
-                scroll = Math.max(0, Math.min(namespaces.size() - visibleRows,
-                        scroll - Integer.signum(delta)));
-            }
+            scroll = Math.max(0, Math.min(namespaces.size() - visibleRows,
+                    scroll - (int) Math.signum(delta)));
+            return true;
         }
+        return false;
     }
 
     @Override

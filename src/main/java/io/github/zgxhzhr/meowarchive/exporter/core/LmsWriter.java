@@ -106,7 +106,7 @@ public final class LmsWriter {
     private static List<Target> sorted(List<Target> targets) {
         List<Target> copy = new ArrayList<>(targets);
         copy.sort(Comparator.comparing((Target t) -> t.id.toString())
-                .thenComparingInt(t -> t.stack == null ? 0 : t.stack.getMetadata()));
+                .thenComparingInt(t -> t.stack == null ? 0 : t.stack.getDamage()));
         return copy;
     }
 
@@ -134,7 +134,7 @@ public final class LmsWriter {
         o.addProperty("name", displayName(t));
         o.addProperty("englishName", t.nameEn);
         o.addProperty("registerName", t.id.toString());
-        o.addProperty("metadata", t.stack.getMetadata());
+        o.addProperty("metadata", t.stack.getDamage());
         o.addProperty("type", t.stack.getItem() instanceof ItemBlock ? "Block" : "Item");
         o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
         // IRR 系流水线读 maxStackSize，这里同时输出一份别名；maxStacksSize 仍是正式字段

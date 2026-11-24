@@ -17,7 +17,7 @@ public final class ItemIconRenderer {
     }
 
     public static BufferedImage render(ItemStack stack, int size) {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         if (stack == null || stack.isEmpty()) {
             return null;
         }
@@ -28,21 +28,21 @@ public final class ItemIconRenderer {
 
             GlStateManager.enableRescaleNormal();
             GlStateManager.enableBlend();
-            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+            GlStateManager.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
                     GL11.GL_ONE, GL11.GL_ZERO);
-            GlStateManager.enableDepth();
-            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+            GlStateManager.enableDepthTest();
+            GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
             RenderHelper.enableGUIStandardItemLighting();
 
             GlStateManager.pushMatrix();
-            GlStateManager.scale(size / 16.0F, size / 16.0F, 1.0F);
-            mc.getRenderItem().renderItemIntoGUI(stack, 0, 0);
+            GlStateManager.scalef(size / 16.0F, size / 16.0F, 1.0F);
+            mc.getItemRenderer().renderItemIntoGUI(stack, 0, 0);
             GlStateManager.popMatrix();
 
             RenderHelper.disableStandardItemLighting();
             GlStateManager.disableRescaleNormal();
             GlStateManager.disableBlend();
-            GlStateManager.disableDepth();
+            GlStateManager.disableDepthTest();
 
             return target.read();
         } catch (Throwable t) {

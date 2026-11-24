@@ -7,9 +7,6 @@ import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import org.lwjgl.input.Mouse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +14,6 @@ import java.util.List;
 /**
  * 单条图标导出：搜索并点选一个物品 / 实体 / 效果。
  */
-@SideOnly(Side.CLIENT)
 public final class TargetPickerScreen extends GuiScreen {
     private static final int ROW_H = 24;
     private static final int PAD = 14;
@@ -50,7 +46,8 @@ public final class TargetPickerScreen extends GuiScreen {
 
     @Override
     public void initGui() {
-        this.buttonList.clear();
+        this.buttons.clear();
+        this.children.clear();
         all.clear();
         try {
             all.addAll(RegistryScanner.scan(template));
@@ -75,7 +72,7 @@ public final class TargetPickerScreen extends GuiScreen {
         search = new GuiTextField(0, fontRenderer, contentLeft, panelY + 34, listW, 18);
         search.setMaxStringLength(128);
         search.setFocused(true);
-        buttonList.add(new WoodButton(1, contentRight - 80, actionY, 80, 20, "返回",
+        addButton(new WoodButton(1, contentRight - 80, actionY, 80, 20, "返回",
                 () -> mc.displayGuiScreen(parent)));
         refresh();
     }
@@ -107,7 +104,7 @@ public final class TargetPickerScreen extends GuiScreen {
     }
 
     @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+    public void render(int mouseX, int mouseY, float partialTicks) {
         MeowArchiveStyle.fill(0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
         MeowArchiveStyle.panel(panelX, panelY, panelW, panelH);
 
@@ -121,21 +118,21 @@ public final class TargetPickerScreen extends GuiScreen {
 
         String hint = "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出该条图标（只写该命名空间目录下的 PNG）";
         fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, hint, contentRight - contentLeft - 90),
-                contentLeft, messageY, MeowArchiveStyle.SUBTEXT_COLOR, false);
+                contentLeft, messageY, MeowArchiveStyle.SUBTEXT_COLOR);
         if (!message.isEmpty()) {
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, message,
                     contentRight - contentLeft), contentLeft, messageY - 11,
-                    MeowArchiveStyle.DANGER, false);
+                    MeowArchiveStyle.DANGER);
         }
 
-        search.drawTextBox();
-        super.drawScreen(mouseX, mouseY, partialTicks);
+        search.drawTextField(mouseX, mouseY, partialTicks);
+        super.render(mouseX, mouseY, partialTicks);
     }
 
     private void renderRows(int mouseX, int mouseY) {
         if (filtered.isEmpty()) {
             fontRenderer.drawString("没有匹配的条目", listX + 8, listY + 8,
-                    MeowArchiveStyle.SUBTEXT_COLOR, false);
+                    MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
         MeowArchiveStyle.enableScissor(mc, listX, listY, listW, listH);
@@ -164,15 +161,15 @@ public final class TargetPickerScreen extends GuiScreen {
             }
             String name = !target.nameZh.isEmpty() ? target.nameZh : target.nameEn;
             if (name.isEmpty()) {
-                name = target.id.getResourcePath();
+                name = target.id.getPath();
             }
             int kindW = fontRenderer.getStringWidth(kind);
-            fontRenderer.drawString(kind, listX + 6, rowY + 3, kindColor, false);
+            fontRenderer.drawString(kind, listX + 6, rowY + 3, kindColor);
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, name,
                     listX + listW - 6 - (listX + 6 + kindW + 4)), listX + 6 + kindW + 4, rowY + 3,
-                    MeowArchiveStyle.TEXT_COLOR, false);
+                    MeowArchiveStyle.TEXT_COLOR);
             fontRenderer.drawString(MeowArchiveStyle.clamp(fontRenderer, target.id.toString(),
-                    listW - 12), listX + 6, rowY + 13, MeowArchiveStyle.SUBTEXT_COLOR, false);
+                    listW - 12), listX + 6, rowY + 13, MeowArchiveStyle.SUBTEXT_COLOR);
         }
         MeowArchiveStyle.disableScissor();
 
@@ -190,44 +187,46 @@ public final class TargetPickerScreen extends GuiScreen {
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws java.io.IOException {
-        search.mouseClicked(mouseX, mouseY, mouseButton);
+    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+        if (search.mouseClicked(mouseX, mouseY, mouseButton)) {
+            return true;
+        }
         if (mouseButton == 0 && MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
-            int row = (mouseY - listY) / ROW_H;
+            int row = (int) ((mouseY - listY) / ROW_H);
             int idx = scroll + row;
             if (idx < filtered.size()) {
                 pick(filtered.get(idx));
-                return;
+                return true;
             }
         }
-        super.mouseClicked(mouseX, mouseY, mouseButton);
+        return super.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
     @Override
-    protected void keyTyped(char typedChar, int keyCode) throws java.io.IOException {
-        if (search.textboxKeyTyped(typedChar, keyCode)) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (search.keyPressed(keyCode, scanCode, modifiers)) {
             refresh();
-            return;
+            return true;
         }
-        super.keyTyped(typedChar, keyCode);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public void handleMouseInput() throws java.io.IOException {
-        super.handleMouseInput();
-        int delta = Mouse.getEventDWheel();
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (search.charTyped(codePoint, modifiers)) {
+            refresh();
+            return true;
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
+
+    @Override
+    public boolean mouseScrolled(double delta) {
         if (delta != 0 && filtered.size() > visible) {
-            int mouseX = Mouse.getEventX() * width / mc.displayWidth;
-            int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-            if (MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
-                scroll = Math.max(0, Math.min(filtered.size() - visible, scroll - Integer.signum(delta)));
-            }
+            scroll = Math.max(0, Math.min(filtered.size() - visible, scroll - (int) Math.signum(delta)));
+            return true;
         }
-    }
-
-    @Override
-    public void onGuiClosed() {
-        // 关闭时不做额外处理，返回按钮负责切回上一级
+        return false;
     }
 
     @Override

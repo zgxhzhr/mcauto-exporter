@@ -2,10 +2,8 @@ package io.github.zgxhzhr.meowarchive.exporter.client;
 
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.ModContainer;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.loading.moddiscovery.ModInfo;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -13,26 +11,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 1.12.2 客户端环境信息：游戏目录、配置目录、已加载模组。
+ * 1.13.2 客户端环境信息：游戏目录、配置目录、已加载模组。
  */
-@SideOnly(Side.CLIENT)
 public final class ClientPlatform {
 
     private ClientPlatform() {
     }
 
     public static Path gameDir() {
-        return Minecraft.getMinecraft().mcDataDir.toPath();
+        return Minecraft.getInstance().gameDir.toPath();
     }
 
     public static Path configDir() {
-        return new File(Minecraft.getMinecraft().mcDataDir, "config").toPath();
+        return new File(Minecraft.getInstance().gameDir, "config").toPath();
     }
 
     public static List<String> loadedModIds() {
         List<String> out = new ArrayList<>();
         try {
-            for (ModContainer mod : Loader.instance().getModList()) {
+            for (ModInfo mod : ModList.get().getMods()) {
                 out.add(mod.getModId());
             }
         } catch (Throwable t) {
@@ -43,9 +40,11 @@ public final class ClientPlatform {
 
     public static String modName(String modId) {
         try {
-            ModContainer mod = Loader.instance().getIndexedModList().get(modId);
-            if (mod != null && mod.getName() != null && !mod.getName().isEmpty()) {
-                return mod.getName();
+            for (ModInfo mod : ModList.get().getMods()) {
+                if (modId.equals(mod.getModId()) && mod.getDisplayName() != null
+                        && !mod.getDisplayName().isEmpty()) {
+                    return mod.getDisplayName();
+                }
             }
         } catch (Throwable ignored) {
         }

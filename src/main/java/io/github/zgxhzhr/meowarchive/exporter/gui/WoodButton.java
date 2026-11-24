@@ -32,7 +32,7 @@ class WoodButton extends GuiButton {
     }
 
     @Override
-    public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+    public void render(int mouseX, int mouseY, float partialTicks) {
         if (!this.visible) {
             return;
         }
@@ -50,20 +50,17 @@ class WoodButton extends GuiButton {
             MeowArchiveStyle.checkBox(this.x + 6, this.y + (this.height - size) / 2, this.checked);
             textLeft += 6 + size + 4;
         }
+        Minecraft mc = Minecraft.getInstance();
         int textWidth = mc.fontRenderer.getStringWidth(this.displayString);
         int tx = textLeft + (textRight - textLeft - textWidth) / 2;
         int ty = this.y + (this.height - 8) / 2;
-        mc.fontRenderer.drawString(this.displayString, tx, ty, color, false);
+        mc.fontRenderer.drawString(this.displayString, tx, ty, color);
     }
 
     @Override
-    public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
-        if (super.mousePressed(mc, mouseX, mouseY)) {
-            if (this.action != null) {
-                this.action.run();
-            }
-            return true;
+    public void onClick(double mouseX, double mouseY) {
+        if (this.action != null) {
+            this.action.run();
         }
-        return false;
     }
 }

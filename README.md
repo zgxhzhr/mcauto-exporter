@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **1.12.2 / Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **1.13.2 / Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -72,19 +72,20 @@ meowarchive-export/
 
 ```text
 src/main/java/       导出逻辑、界面与平台代码
-src/main/resources/  mcmod.info、语言文件、模型与贴图
+src/main/resources/  META-INF/mods.toml、语言文件（JSON）、模型与贴图
 ```
 
 ## 已知限制
 
-- 支持 1.12.2 的 Forge 客户端。
+- 支持 1.13.2 的 Forge 客户端。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
-- 物品图标取默认 ItemStack，不导出 NBT 变体。
+- 1.13 取消了物品元数据，同一注册名的变体（药水、附魔书等）按 NBT 区分为独立条目，`metadata` 字段固定写损伤值（通常为 0）。
+- 1.13 移除了矿物词典，`OredictList` 固定输出 `[]`。
 - 配方、附魔暂不导出。
 
 ## 许可
 
 - 本仓库代码：MIT。
-- 物品贴图 `assets/meowarchive/textures/items/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
+- 物品贴图 `assets/meowarchive/textures/item/miao_wu_ji.png` 为项目作者自制素材，随本仓库以 MIT 授权。
 - 图标导出的「一帧一个 + 离屏 FBO + 像素读回」做法来自作者自己的 ZHR_SuperDBG，按 MIT 重新授权。
 - LMS（LGPL-3.0）、IRR（GPL-3.0）仅参考公开输出格式与行为，未复制代码。

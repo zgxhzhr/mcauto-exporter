@@ -2,7 +2,6 @@ package io.github.zgxhzhr.meowarchive.exporter.gui;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.ScaledResolution;
 import org.lwjgl.opengl.GL11;
 
 /**
@@ -108,17 +107,16 @@ final class MeowArchiveStyle {
 
     /** 无阴影居中文字：阴影会把深色底上的彩色字糊掉。 */
     static void centered(net.minecraft.client.gui.FontRenderer font, String text, int centerX, int y, int color) {
-        font.drawString(text, centerX - font.getStringWidth(text) / 2, y, color, false);
+        font.drawString(text, centerX - font.getStringWidth(text) / 2, y, color);
     }
 
     /** 列表裁剪：换算成窗口像素坐标后交给 GL。 */
     static void enableScissor(Minecraft mc, int x, int y, int w, int h) {
-        ScaledResolution sr = new ScaledResolution(mc);
-        int scale = sr.getScaleFactor();
-        int sx = x * scale;
-        int sy = mc.displayHeight - (y + h) * scale;
+        double scale = mc.mainWindow.getGuiScaleFactor();
+        int sx = (int) (x * scale);
+        int sy = mc.mainWindow.getFramebufferHeight() - (int) ((y + h) * scale);
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor(sx, sy, w * scale, h * scale);
+        GL11.glScissor(sx, sy, (int) (w * scale), (int) (h * scale));
     }
 
     static void disableScissor() {

@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[25,)"
+license="MIT"
+
+[[mods]]
+modId="meowarchive"
+version="${version}"
+displayName="Meow Archive Exporter"
+description='''客户端侧内容导出器：把物品、实体与效果导出成 LMS 格式 JSON、32/128 图标与单文件 HTML 预览页。'''
+logoFile="icon.png"
+authors="zgxhzhr"
+credits=""
+
+[[dependencies.meowarchive]]
+    modId="forge"
+    mandatory=true
+    versionRange="[25,)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.meowarchive]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.13.2,1.14)"
+    ordering="NONE"
+    side="CLIENT"

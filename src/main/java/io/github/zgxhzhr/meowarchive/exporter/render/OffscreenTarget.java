@@ -73,9 +73,9 @@ final class OffscreenTarget {
         GlStateManager.ortho(0.0D, this.size, this.size, 0.0D, 1000.0D, 3000.0D);
         GlStateManager.matrixMode(GL11.GL_MODELVIEW);
         GlStateManager.loadIdentity();
-        // 1.12.2 的 GUI 几何在 z≈0～300 之间，投影近平面是 1000，
+        // 1.13 的 GUI 几何在 z≈0～300 之间，投影近平面是 1000，
         // 必须像原版 setupOverlayRendering 那样整体后移 2000，否则全部被近裁剪掉。
-        GlStateManager.translate(0.0F, 0.0F, -2000.0F);
+        GlStateManager.translatef(0.0F, 0.0F, -2000.0F);
     }
 
     BufferedImage read() {

@@ -67,17 +67,33 @@ public final class Target {
     }
 
     public String path() {
-        return id.getResourcePath();
+        return id.getPath();
     }
 
     /** 日志与失败统计的唯一键：低版本元数据变体附在注册名后，避免同名条目互相覆盖。 */
     public String uid() {
-        return stack != null && stack.getMetadata() != 0
-                ? id.toString() + "#" + stack.getMetadata()
-                : id.toString();
+        return id.toString() + variantSuffix();
+    }
+
+    /**
+     * 1.13 取消了元数据，同注册名的变体靠 NBT 区分（药水、附魔书等）。
+     * 这里把损伤值或 NBT 哈希拼成后缀，图标文件名与统计键都不会互相覆盖。
+     */
+    public String variantSuffix() {
+        if (stack == null) {
+            return "";
+        }
+        int damage = stack.getDamage();
+        if (damage != 0) {
+            return "_" + damage;
+        }
+        if (stack.getTag() != null) {
+            return "_" + Integer.toHexString(stack.getTag().toString().hashCode());
+        }
+        return "";
     }
 
     public String namespace() {
-        return id.getResourceDomain();
+        return id.getNamespace();
     }
 }

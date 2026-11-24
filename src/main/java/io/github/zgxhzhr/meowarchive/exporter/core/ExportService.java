@@ -61,7 +61,7 @@ public final class ExportService {
         if (running) {
             return "已有导出任务在运行";
         }
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         if (mc.world == null || mc.player == null) {
             return "请先进入一个世界";
         }
@@ -218,10 +218,8 @@ public final class ExportService {
         try {
             Path dir = output.resolve(target.namespace()).resolve("icons");
             Files.createDirectories(dir);
-            // 元数据子类型要带后缀，否则同注册名的变体会互相覆盖图标
-            String suffix = target.kind == Target.Kind.ITEM && target.stack.getMetadata() != 0
-                    ? "_" + target.stack.getMetadata()
-                    : "";
+            // 变体要带后缀，否则同注册名的条目会互相覆盖图标
+            String suffix = target.variantSuffix();
             Path file = dir.resolve(target.path() + suffix + "_" + size + ".png");
             Files.write(file, ImageUtil.png(image));
             return true;

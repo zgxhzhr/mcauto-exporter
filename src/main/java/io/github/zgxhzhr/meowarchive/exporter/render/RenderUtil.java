@@ -1,7 +1,6 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import org.lwjgl.opengl.GL11;
 
@@ -15,24 +14,24 @@ final class RenderUtil {
     }
 
     static void restoreGuiState() {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         mc.getFramebuffer().bindFramebuffer(true);
 
-        ScaledResolution sr = new ScaledResolution(mc);
         GlStateManager.matrixMode(GL11.GL_PROJECTION);
         GlStateManager.loadIdentity();
-        GlStateManager.ortho(0.0D, sr.getScaledWidth(), sr.getScaledHeight(), 0.0D, 1000.0D, 3000.0D);
+        GlStateManager.ortho(0.0D, mc.mainWindow.getScaledWidth(), mc.mainWindow.getScaledHeight(), 0.0D,
+                1000.0D, 3000.0D);
         GlStateManager.matrixMode(GL11.GL_MODELVIEW);
         GlStateManager.loadIdentity();
-        GlStateManager.translate(0.0F, 0.0F, -2000.0F);
+        GlStateManager.translatef(0.0F, 0.0F, -2000.0F);
 
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
         GlStateManager.enableTexture2D();
         GlStateManager.disableLighting();
         GlStateManager.enableBlend();
-        GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+        GlStateManager.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
                 GL11.GL_ONE, GL11.GL_ZERO);
-        GlStateManager.disableDepth();
+        GlStateManager.disableDepthTest();
         GlStateManager.bindTexture(0);
     }
 }

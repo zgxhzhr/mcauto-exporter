@@ -67,8 +67,8 @@ public final class PreviewWriter {
                     if (id != 0) {
                         return id;
                     }
-                    int ma = a.stack == null ? 0 : a.stack.getMetadata();
-                    int mb = b.stack == null ? 0 : b.stack.getMetadata();
+                    int ma = a.stack == null ? 0 : a.stack.getDamage();
+                    int mb = b.stack == null ? 0 : b.stack.getDamage();
                     return Integer.compare(ma, mb);
                 }
             });
@@ -172,7 +172,7 @@ public final class PreviewWriter {
 
     private static String meta(Target t) {
         if (t.kind == Target.Kind.ITEM) {
-            int metadata = t.stack.getMetadata();
+            int metadata = t.stack.getDamage();
             return String.format("%s · %s%s · 堆叠 %d · 耐久 %d · 创造栏 %s",
                     t.stack.getItem() instanceof ItemBlock ? "Block" : "Item",
                     t.id, metadata == 0 ? "" : " · 元数据 " + metadata,
@@ -199,7 +199,7 @@ public final class PreviewWriter {
         }
         o.addProperty("registerName", t.id.toString());
         if (t.kind == Target.Kind.ITEM) {
-            o.addProperty("metadata", t.stack.getMetadata());
+            o.addProperty("metadata", t.stack.getDamage());
             o.addProperty("type", t.stack.getItem() instanceof ItemBlock ? "Block" : "Item");
             o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
             o.addProperty("maxStackSize", t.stack.getMaxStackSize());

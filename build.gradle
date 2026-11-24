@@ -13,7 +13,7 @@ apply plugin: 'eclipse'
 
 version = project.version
 group = 'io.github.zgxhzhr.meowarchive'
-archivesBaseName = 'meowarchive-forge-1.12.2'
+archivesBaseName = 'meowarchive-forge-1.13.2'
 
 sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
@@ -22,16 +22,15 @@ tasks.withType(JavaCompile) {
 }
 
 minecraft {
-    mappings channel: 'snapshot', version: '20171003-1.12'
+    mappings channel: 'snapshot', version: '20180921-1.13'
 
     runs {
         client {
             workingDirectory project.file('run')
-            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
             property 'forge.logging.console.level', 'debug'
         }
         server {
-            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            workingDirectory project.file('run')
             property 'forge.logging.console.level', 'debug'
         }
     }
@@ -42,15 +41,15 @@ repositories {
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2860'
+    minecraft 'net.minecraftforge:forge:1.13.2-25.0.219'
 }
 
 processResources {
-    filteringCharset = 'UTF-8'
     inputs.property 'version', project.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version': project.version, 'mcversion': '1.12.2'
+    // 按 UTF-8 读取资源，否则 Windows 上 mods.toml 的中文描述会变成乱码
+    filteringCharset = 'UTF-8'
+    filesMatching('META-INF/mods.toml') {
+        expand 'version': project.version
     }
 }
 

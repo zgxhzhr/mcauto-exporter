@@ -45,7 +45,7 @@ public final class AutoExport {
         if (namespace.isEmpty()) {
             return;
         }
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         if (deadline == 0L) {
             deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         }
@@ -95,37 +95,6 @@ public final class AutoExport {
         if (finished && exitWhenDone && System.currentTimeMillis() - finishedAt > 3000L) {
             ExporterLog.LOG.info("自动导出结束，关闭客户端");
             mc.shutdown();
-        }
-    }
-
-    /** 一次性诊断：确认资源管理器对各资源路径的可见性差异（定位语言文件读不到的原因）。 */
-    private static void probeResources(Minecraft mc) {
-        try {
-            java.util.List<String> domains = new java.util.ArrayList<>(
-                    mc.getResourceManager().getResourceDomains());
-            ExporterLog.LOG.info("PROBE domains={} hasMeow={}", domains.size(),
-                    domains.contains("meowarchive"));
-        } catch (Throwable e) {
-            ExporterLog.LOG.info("PROBE domains error: {}", e.toString());
-        }
-        probeOne(mc, "models/item/miao_wu_ji.json");
-        probeOne(mc, "textures/items/miao_wu_ji.png");
-        probeOne(mc, "lang/zh_cn.lang");
-        try {
-            ExporterLog.LOG.info("PROBE i18n={}", net.minecraft.util.text.translation.I18n
-                    .translateToLocal("item.meowarchive.miao_wu_ji.name"));
-        } catch (Throwable e) {
-            ExporterLog.LOG.info("PROBE i18n error: {}", e.toString());
-        }
-    }
-
-    private static void probeOne(Minecraft mc, String path) {
-        try {
-            boolean ok = mc.getResourceManager().getResource(
-                    new net.minecraft.util.ResourceLocation("meowarchive", path)) != null;
-            ExporterLog.LOG.info("PROBE {} -> {}", path, ok);
-        } catch (Throwable e) {
-            ExporterLog.LOG.info("PROBE {} error: {}", path, e.toString());
         }
     }
 
