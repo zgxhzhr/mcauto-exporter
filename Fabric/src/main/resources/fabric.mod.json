@@ -1,39 +1,31 @@
 {
     "schemaVersion": 1,
-    "id": "modid",
+    "id": "meowarchive",
     "version": "${version}",
-  
-    "name": "Example Mod",
-    "description": "This is an example description! Tell everyone what your mod is about!",
+    "name": "${mod_name}",
+    "description": "${description}",
     "authors": [
-      "Me!"
+        "${mod_author}"
     ],
     "contact": {
-      "homepage": "https://fabricmc.net/",
-      "sources": "https://github.com/FabricMC/fabric-example-mod"
+        "homepage": "https://github.com/zgxhzhr/meowarchive",
+        "sources": "https://github.com/zgxhzhr/meowarchive"
     },
-  
-    "license": "CC0-1.0",
-    "icon": "assets/modid/icon.png",
-  
-    "environment": "*",
+    "license": "${license}",
+    "icon": "assets/meowarchive/icon.png",
+    "environment": "client",
     "entrypoints": {
-      "main": [
-        "com.example.examplemod.ExampleMod"
-      ]
+        "main": [
+            "io.github.zgxhzhr.meowarchive.exporter.MeowArchiveExporter"
+        ],
+        "client": [
+            "io.github.zgxhzhr.meowarchive.exporter.MeowArchiveExporter"
+        ]
     },
-    "mixins": [
-      "modid.mixins.json"
-    ],
-  
     "depends": {
-      "fabricloader": ">=0.14",
-      "fabric": "*",
-      "minecraft": "1.19.3",
-      "java": ">=17"
-    },
-    "suggests": {
-      "another-mod": "*"
+        "fabricloader": ">=${fabric_loader_version}",
+        "fabric-api": "*",
+        "minecraft": "${minecraft_version}",
+        "java": ">=${java_version}"
     }
-  }
-  
+}
