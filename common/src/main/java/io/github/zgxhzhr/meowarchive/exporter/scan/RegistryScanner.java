@@ -81,11 +81,15 @@ public final class RegistryScanner {
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
-                if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
-                    // 技术性实体（中英文名都缺失），不参与导出
+                t.entityCategory = type.getCategory().name();
+                if (t.nameZh.isBlank() && t.nameEn.isBlank()
+                        && type.getCategory() == net.minecraft.world.entity.MobCategory.MISC) {
+                    // 只跳过「无名字 + MISC」的技术性实体（投射物、辅助实体）。
+                    // 无名字但属于 CREATURE/AMBIENT 等类别的是真生物（模组漏写实体翻译很常见），
+                    // 必须照常导出，名字回退为注册名。
+                    ExporterLog.LOG.info("跳过技术性实体（无名字 + MISC）：{}", id);
                     continue;
                 }
-                t.entityCategory = type.getCategory().name();
                 t.width = type.getDimensions().width;
                 t.height = type.getDimensions().height;
                 try {
