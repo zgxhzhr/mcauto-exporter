@@ -1,14 +1,54 @@
 plugins {
-    id 'fabric-loom' version '1.9-SNAPSHOT' apply(false)
-    id 'net.neoforged.moddev.legacyforge' version '2.0.77' apply(false)
+    id 'java'
+    id 'com.gtnewhorizons.retrofuturagradle' version '2.0.6'
 }
 
-allprojects {
-    tasks.withType(JavaCompile).configureEach {
-        options.encoding = 'UTF-8'
+version = project.version
+group = 'io.github.zgxhzhr.meowarchive'
+base {
+    archivesName = 'meowarchive-forge-1.7.10'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
     }
-    tasks.withType(Javadoc).configureEach {
-        options.encoding = 'UTF-8'
-        options.charSet = 'UTF-8'
+}
+
+minecraft {
+    mcVersion = '1.7.10'
+    username = 'Developer'
+    mcpMappingChannel = 'stable'
+    mcpMappingVersion = '12'
+    javaCompatibilityVersion = 8
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+    inputs.property 'version', project.version
+    filesMatching('mcmod.info') {
+        expand 'version': project.version, 'mcversion': '1.7.10'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+                "Specification-Title"     : "meowarchive",
+                "Specification-Vendor"    : "zgxhzhr",
+                "Specification-Version"   : "1",
+                "Implementation-Title"    : project.name,
+                "Implementation-Version"  : "${version}",
+                "Implementation-Vendor"   : "zgxhzhr",
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
     }
 }
