@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **26.3 / Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -73,9 +73,10 @@ meowarchive-export/
 ## 项目结构
 
 ```text
-common/    与加载器无关的导出逻辑（扫描、离屏渲染、LMS 写出、界面）
-fabric/    Fabric 入口、命令、平台服务实现
-neoforge/  NeoForge 入口、命令、平台服务实现
+build-logic/  构建约定插件
+common/       与加载器无关的导出逻辑（扫描、离屏渲染、LMS 写出、界面）
+fabric/       Fabric 入口、命令、平台服务实现
+neoforge/     NeoForge 入口、命令、平台服务实现
 ```
 
 图标渲染基于当前版本的提交节点管线：新建 RGBA 纹理、以正交投影提交物品/实体模型、GPU 异步回读后转 PNG；
@@ -83,9 +84,10 @@ neoforge/  NeoForge 入口、命令、平台服务实现
 
 ## 已知限制
 
+- 支持 26.3 的 Fabric 与 NeoForge 客户端。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 末影龙这类翼展远大于身高的实体按最长边适配，图中会偏扁。
-- 物品图标取默认 ItemStack，不导出 NBT 变体。
+- 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
 - 配方、附魔暂不导出。
 
 ## 许可
