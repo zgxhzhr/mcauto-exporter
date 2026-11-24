@@ -48,7 +48,7 @@ public final class RegistryScanner {
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
                 fillNames(t, lang, item.getDescriptionId());
-                t.creativeTab = creativeTab(item, mc);
+                t.creativeTab = creativeTab(item, mc, lang);
                 t.tags = itemTags(item);
                 out.add(t);
             }
@@ -208,7 +208,7 @@ public final class RegistryScanner {
         }
     }
 
-    private static String creativeTab(Item item, Minecraft mc) {
+    private static String creativeTab(Item item, Minecraft mc, LanguagePair lang) {
         if (creativeTabs == null) {
             creativeTabs = new HashMap<>();
             for (CreativeModeTab tab : CreativeModeTab.TABS) {
@@ -218,7 +218,8 @@ public final class RegistryScanner {
                 }
                 String name;
                 try {
-                    name = tab.getDisplayName().getString();
+                    // 1.15.2 的 getName() 直接返回翻译键（如 itemGroup.combat），需要自行查语言表
+                    name = tabName(tab, lang);
                 } catch (Throwable e) {
                     name = "未知";
                 }
@@ -235,6 +236,23 @@ public final class RegistryScanner {
             }
         }
         return creativeTabs.getOrDefault(item, "未知");
+    }
+
+    /** 把创造栏的翻译键（itemGroup.combat）翻成可读名。 */
+    private static String tabName(CreativeModeTab tab, LanguagePair lang) {
+        String raw = tab.getName();
+        if (raw == null || raw.isEmpty()) {
+            return "未知";
+        }
+        String zh = resolve(lang.zh, raw);
+        if (!zh.isEmpty()) {
+            return zh;
+        }
+        String en = resolve(lang.en, raw);
+        if (!en.isEmpty()) {
+            return en;
+        }
+        return raw;
     }
 
     private static final class LanguagePair {

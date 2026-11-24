@@ -113,7 +113,7 @@ public final class ExportService {
     public void tick() {
     }
 
-    public void onHudRender(PoseStack pose) {
+    public void onHudRender() {
         if (!running || request == null || targetDone()) {
             return;
         }

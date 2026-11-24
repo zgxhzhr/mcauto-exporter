@@ -75,7 +75,6 @@ final class OffscreenTarget {
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
 
         // 让 GlStateManager 的缓存与真实 GL 状态一致
-        GlStateManager._disableScissorTest();
         GlStateManager._viewport(0, 0, this.size, this.size);
         GlStateManager._colorMask(true, true, true, true);
         GlStateManager._depthMask(true);

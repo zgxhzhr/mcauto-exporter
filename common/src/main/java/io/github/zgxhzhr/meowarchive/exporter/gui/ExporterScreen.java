@@ -1,6 +1,5 @@
 package io.github.zgxhzhr.meowarchive.exporter.gui;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportMode;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
@@ -12,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.Registry;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 
 import java.nio.file.Path;
@@ -123,47 +121,38 @@ public final class ExporterScreen extends Screen {
         }));
 
         int half = (rightW - 8) / 2;
-        itemsButton = addButton(new WoodButton(rightX, y + 25, half, 20,
-                new TextComponent("物品 / 方块"), () -> {
+        itemsButton = addButton(new WoodButton(rightX, y + 25, half, 20, "物品 / 方块", () -> {
             items = !items;
             itemsButton.setChecked(items);
         }).withCheckBox(items));
-        entitiesButton = addButton(new WoodButton(rightX + rightW - half, y + 25, half, 20,
-                new TextComponent("实体"), () -> {
+        entitiesButton = addButton(new WoodButton(rightX + rightW - half, y + 25, half, 20, "实体", () -> {
             entities = !entities;
             entitiesButton.setChecked(entities);
         }).withCheckBox(entities));
-        effectsButton = addButton(new WoodButton(rightX, y + 50, rightW, 20,
-                new TextComponent("效果"), () -> {
+        effectsButton = addButton(new WoodButton(rightX, y + 50, rightW, 20, "效果", () -> {
             effects = !effects;
             effectsButton.setChecked(effects);
         }).withCheckBox(effects));
 
-        size32Button = addButton(new WoodButton(rightX, y + 75, half, 20,
-                new TextComponent("32×32"), () -> {
+        size32Button = addButton(new WoodButton(rightX, y + 75, half, 20, "32×32", () -> {
             size32 = !size32;
             size32Button.setChecked(size32);
         }).withCheckBox(size32));
-        size128Button = addButton(new WoodButton(rightX + rightW - half, y + 75, half, 20,
-                new TextComponent("128×128"), () -> {
+        size128Button = addButton(new WoodButton(rightX + rightW - half, y + 75, half, 20, "128×128", () -> {
             size128 = !size128;
             size128Button.setChecked(size128);
         }).withCheckBox(size128));
 
-        addButton(new WoodButton(rightX, y + 100, rightW, 20,
-                new TextComponent("导出单个图标…"), () ->
+        addButton(new WoodButton(rightX, y + 100, rightW, 20, "导出单个图标…", () ->
                 Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
 
         int gap = 8;
         int closeW = 72;
         int openW = 92;
         int startW = Math.max(90, contentRight - contentLeft - closeW - openW - gap * 2);
-        startButton = addButton(new WoodButton(contentLeft, actionY, startW, 20,
-                new TextComponent("开始导出"), this::start));
-        addButton(new WoodButton(contentLeft + startW + gap, actionY, openW, 20,
-                new TextComponent("打开目录"), this::openOutput));
-        addButton(new WoodButton(contentRight - closeW, actionY, closeW, 20,
-                new TextComponent("关闭"), this::onClose));
+        startButton = addButton(new WoodButton(contentLeft, actionY, startW, 20, "开始导出", this::start));
+        addButton(new WoodButton(contentLeft + startW + gap, actionY, openW, 20, "打开目录", this::openOutput));
+        addButton(new WoodButton(contentRight - closeW, actionY, closeW, 20, "关闭", this::onClose));
     }
 
     private void start() {
@@ -220,8 +209,8 @@ public final class ExporterScreen extends Screen {
         }
     }
 
-    private Component modeLabel() {
-        return new TextComponent("模式：" + mode.label);
+    private String modeLabel() {
+        return "模式：" + mode.label;
     }
 
     private Set<String> contentNamespaces() {
@@ -233,39 +222,44 @@ public final class ExporterScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(PoseStack pose, int vOffset) {
+    public void renderBackground() {
         // 不使用原版模糊/泥土背景：纯色底更稳，也避免世界画面透上来降低可读性。
     }
 
     @Override
-    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
-        MeowArchiveStyle.fill(pose, 0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
-        MeowArchiveStyle.panel(pose, panelX, panelY, panelW, panelH);
-
-        Font font = this.font;
-        MeowArchiveStyle.centered(pose, font, title.getString(), width / 2, panelY + 9, MeowArchiveStyle.HEADER_COLOR);
-        MeowArchiveStyle.separator(pose, panelX + 10, panelX + panelW - 10, panelY + 25);
-
-        // 分区标题
-        font.draw(pose, "命名空间", listX, contentTop, MeowArchiveStyle.HEADER_COLOR);
-        String count = "已选 " + selected.size() + "/" + namespaces.size();
-        font.draw(pose, count, listX + listW - font.width(count), contentTop,
-                MeowArchiveStyle.SUBTEXT_COLOR);
-        font.draw(pose, "导出选项", rightX, contentTop, MeowArchiveStyle.HEADER_COLOR);
-
-        renderList(pose, mouseX, mouseY);
-        renderStatus(pose);
-
-        super.render(pose, mouseX, mouseY, partialTick);
+    public void renderBackground(int vOffset) {
+        // 同上
     }
 
-    private void renderList(PoseStack pose, int mouseX, int mouseY) {
+    @Override
+    public void render(int mouseX, int mouseY, float partialTick) {
+        MeowArchiveStyle.fill(0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
+        MeowArchiveStyle.panel(panelX, panelY, panelW, panelH);
+
         Font font = this.font;
-        MeowArchiveStyle.fill(pose, listX, listY, listX + listW, listY + listH, MeowArchiveStyle.LIST_BG);
-        MeowArchiveStyle.outline(pose, listX, listY, listW, listH, 0x558B5A2B);
+        MeowArchiveStyle.centered(font, title.getString(), width / 2, panelY + 9, MeowArchiveStyle.HEADER_COLOR);
+        MeowArchiveStyle.separator(panelX + 10, panelX + panelW - 10, panelY + 25);
+
+        // 分区标题
+        font.draw("命名空间", listX, contentTop, MeowArchiveStyle.HEADER_COLOR);
+        String count = "已选 " + selected.size() + "/" + namespaces.size();
+        font.draw(count, listX + listW - font.width(count), contentTop,
+                MeowArchiveStyle.SUBTEXT_COLOR);
+        font.draw("导出选项", rightX, contentTop, MeowArchiveStyle.HEADER_COLOR);
+
+        renderList(mouseX, mouseY);
+        renderStatus();
+
+        super.render(mouseX, mouseY, partialTick);
+    }
+
+    private void renderList(int mouseX, int mouseY) {
+        Font font = this.font;
+        MeowArchiveStyle.fill(listX, listY, listX + listW, listY + listH, MeowArchiveStyle.LIST_BG);
+        MeowArchiveStyle.outline(listX, listY, listW, listH, 0x558B5A2B);
 
         if (namespaces.isEmpty()) {
-            font.draw(pose, "没有可导出的命名空间", listX + 8, listY + 8,
+            font.draw("没有可导出的命名空间", listX + 8, listY + 8,
                     MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
@@ -281,16 +275,16 @@ public final class ExporterScreen extends Screen {
             boolean on = selected.contains(entry.id);
             boolean hover = MeowArchiveStyle.inRect(listX, rowY, listW, ROW_H, mouseX, mouseY);
             if (on) {
-                MeowArchiveStyle.fill(pose, listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_SELECTED);
+                MeowArchiveStyle.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_SELECTED);
             } else if (hover) {
-                MeowArchiveStyle.fill(pose, listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_HOVER);
+                MeowArchiveStyle.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_HOVER);
             }
-            MeowArchiveStyle.checkBox(pose, listX + 6, rowY + 7, on);
+            MeowArchiveStyle.checkBox(listX + 6, rowY + 7, on);
             int textLeft = listX + 6 + MeowArchiveStyle.checkSize() + 6;
             int textW = listX + listW - 6 - textLeft;
-            font.draw(pose, MeowArchiveStyle.clamp(font, entry.name, textW), textLeft, rowY + 3,
+            font.draw(MeowArchiveStyle.clamp(font, entry.name, textW), textLeft, rowY + 3,
                     on ? MeowArchiveStyle.ACCENT : MeowArchiveStyle.TEXT_COLOR);
-            font.draw(pose, MeowArchiveStyle.clamp(font, entry.id, textW), textLeft, rowY + 13,
+            font.draw(MeowArchiveStyle.clamp(font, entry.id, textW), textLeft, rowY + 13,
                     MeowArchiveStyle.SUBTEXT_COLOR);
         }
         MeowArchiveStyle.disableScissor();
@@ -303,28 +297,28 @@ public final class ExporterScreen extends Screen {
             int progress = Math.min(trackH - thumbH,
                     (int) ((long) scroll * (trackH - thumbH) / Math.max(1, maxScroll)));
             int barX = listX + listW - 4;
-            MeowArchiveStyle.fill(pose, barX, listY + 2 + progress, barX + 2,
+            MeowArchiveStyle.fill(barX, listY + 2 + progress, barX + 2,
                     listY + 2 + progress + thumbH, 0x66FFFFFF);
         }
     }
 
-    private void renderStatus(PoseStack pose) {
+    private void renderStatus() {
         Font font = this.font;
         ExportService service = ExportService.get();
         if (service.isRunning()) {
             String label = MeowArchiveStyle.clamp(font, "导出中：" + service.currentLabel(),
                     contentRight - contentLeft);
-            font.draw(pose, label, contentLeft, statusY, MeowArchiveStyle.ACCENT);
+            font.draw(label, contentLeft, statusY, MeowArchiveStyle.ACCENT);
             int barW = contentRight - contentLeft;
-            MeowArchiveStyle.fill(pose, contentLeft, statusY + 11, contentLeft + barW, statusY + 17, 0x66000000);
+            MeowArchiveStyle.fill(contentLeft, statusY + 11, contentLeft + barW, statusY + 17, 0x66000000);
             int filled = service.total() == 0 ? 0 : (int) (barW * (service.done() / (float) service.total()));
-            MeowArchiveStyle.fill(pose, contentLeft, statusY + 11, contentLeft + filled, statusY + 17, 0xFFD0A060);
+            MeowArchiveStyle.fill(contentLeft, statusY + 11, contentLeft + filled, statusY + 17, 0xFFD0A060);
             String detail = service.done() + " / " + service.total();
             List<String> log = service.recentLog();
             if (!log.isEmpty()) {
                 detail += " · " + log.get(log.size() - 1);
             }
-            font.draw(pose, MeowArchiveStyle.clamp(font, detail, contentRight - contentLeft),
+            font.draw(MeowArchiveStyle.clamp(font, detail, contentRight - contentLeft),
                     contentLeft, statusY + 20, MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
@@ -343,10 +337,9 @@ public final class ExporterScreen extends Screen {
             line = "就绪";
             color = MeowArchiveStyle.SUBTEXT_COLOR;
         }
-        font.draw(pose, MeowArchiveStyle.clamp(font, line, contentRight - contentLeft),
+        font.draw(MeowArchiveStyle.clamp(font, line, contentRight - contentLeft),
                 contentLeft, statusY, color);
-        font.draw(pose,
-                MeowArchiveStyle.clamp(font, "输出：" + ExporterConfig.get().outputPath(),
+        font.draw(MeowArchiveStyle.clamp(font, "输出：" + ExporterConfig.get().outputPath(),
                         contentRight - contentLeft),
                 contentLeft, statusY + 11, MeowArchiveStyle.SUBTEXT_COLOR);
     }

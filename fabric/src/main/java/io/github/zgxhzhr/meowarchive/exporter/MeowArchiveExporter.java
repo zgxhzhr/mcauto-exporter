@@ -29,6 +29,7 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
             ExportService.get().tick();
             AutoExport.tick();
         });
-        HudRenderCallback.EVENT.register((pose, tickDelta) -> ExportService.get().onHudRender(pose));        ExporterLog.LOG.info("Meow Archive Exporter ready");
+        HudRenderCallback.EVENT.register(tickDelta -> ExportService.get().onHudRender());
+        ExporterLog.LOG.info("Meow Archive Exporter ready");
     }
 }

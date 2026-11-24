@@ -1,6 +1,5 @@
 package io.github.zgxhzhr.meowarchive.exporter.gui;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportMode;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
@@ -8,8 +7,8 @@ import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.TextComponent;
 
 import java.util.ArrayList;
@@ -72,12 +71,11 @@ public final class TargetPickerScreen extends Screen {
         visible = Math.max(2, listH / ROW_H);
         messageY = actionY - 14;
 
-        search = new EditBox(font, contentLeft, panelY + 34, listW, 18, new TextComponent("搜索"));
+        search = new EditBox(font, contentLeft, panelY + 34, listW, 18, "搜索");
         search.setMaxLength(128);
         search.setResponder(text -> refresh());
         addButton(search);
-        addButton(new WoodButton(contentRight - 80, actionY, 80, 20,
-                new TextComponent("返回"), this::onClose));
+        addButton(new WoodButton(contentRight - 80, actionY, 80, 20, "返回", this::onClose));
         refresh();
     }
 
@@ -108,37 +106,42 @@ public final class TargetPickerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(PoseStack pose, int vOffset) {
+    public void renderBackground() {
         // 纯色底，不用原版模糊背景
     }
 
     @Override
-    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
-        MeowArchiveStyle.fill(pose, 0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
-        MeowArchiveStyle.panel(pose, panelX, panelY, panelW, panelH);
+    public void renderBackground(int vOffset) {
+        // 同上
+    }
+
+    @Override
+    public void render(int mouseX, int mouseY, float partialTick) {
+        MeowArchiveStyle.fill(0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
+        MeowArchiveStyle.panel(panelX, panelY, panelW, panelH);
 
         Font font = this.font;
-        MeowArchiveStyle.centered(pose, font, title.getString(), width / 2, panelY + 9, MeowArchiveStyle.HEADER_COLOR);
-        MeowArchiveStyle.separator(pose, panelX + 10, panelX + panelW - 10, panelY + 25);
+        MeowArchiveStyle.centered(font, title.getString(), width / 2, panelY + 9, MeowArchiveStyle.HEADER_COLOR);
+        MeowArchiveStyle.separator(panelX + 10, panelX + panelW - 10, panelY + 25);
 
-        MeowArchiveStyle.fill(pose, listX, listY, listX + listW, listY + listH, MeowArchiveStyle.LIST_BG);
-        MeowArchiveStyle.outline(pose, listX, listY, listW, listH, 0x558B5A2B);
-        renderRows(pose, font, mouseX, mouseY);
+        MeowArchiveStyle.fill(listX, listY, listX + listW, listY + listH, MeowArchiveStyle.LIST_BG);
+        MeowArchiveStyle.outline(listX, listY, listW, listH, 0x558B5A2B);
+        renderRows(font, mouseX, mouseY);
 
         String hint = "共 " + filtered.size() + " 条 · 滚轮翻页 · 点击导出该条图标（只写该命名空间目录下的 PNG）";
-        font.draw(pose, MeowArchiveStyle.clamp(font, hint, contentRight - contentLeft - 90),
+        font.draw(MeowArchiveStyle.clamp(font, hint, contentRight - contentLeft - 90),
                 contentLeft, messageY, MeowArchiveStyle.SUBTEXT_COLOR);
         if (!message.isEmpty()) {
-            font.draw(pose, MeowArchiveStyle.clamp(font, message, contentRight - contentLeft),
+            font.draw(MeowArchiveStyle.clamp(font, message, contentRight - contentLeft),
                     contentLeft, messageY - 11, MeowArchiveStyle.DANGER);
         }
 
-        super.render(pose, mouseX, mouseY, partialTick);
+        super.render(mouseX, mouseY, partialTick);
     }
 
-    private void renderRows(PoseStack pose, Font font, int mouseX, int mouseY) {
+    private void renderRows(Font font, int mouseX, int mouseY) {
         if (filtered.isEmpty()) {
-            font.draw(pose, "没有匹配的条目", listX + 8, listY + 8, MeowArchiveStyle.SUBTEXT_COLOR);
+            font.draw("没有匹配的条目", listX + 8, listY + 8, MeowArchiveStyle.SUBTEXT_COLOR);
             return;
         }
         MeowArchiveStyle.enableScissor(Minecraft.getInstance(), listX, listY, listW, listH);
@@ -150,7 +153,7 @@ public final class TargetPickerScreen extends Screen {
             Target target = filtered.get(idx);
             int rowY = listY + row * ROW_H;
             if (MeowArchiveStyle.inRect(listX, rowY, listW, ROW_H, mouseX, mouseY)) {
-                MeowArchiveStyle.fill(pose, listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_HOVER);
+                MeowArchiveStyle.fill(listX, rowY, listX + listW, rowY + ROW_H - 1, MeowArchiveStyle.ROW_HOVER);
             }
             String kind;
             int kindColor;
@@ -173,11 +176,10 @@ public final class TargetPickerScreen extends Screen {
                 name = target.id.getPath();
             }
             int kindW = font.width(kind);
-            font.draw(pose, kind, listX + 6, rowY + 3, kindColor);
-            font.draw(pose,
-                    MeowArchiveStyle.clamp(font, name, listX + listW - 6 - (listX + 6 + kindW + 4)),
+            font.draw(kind, listX + 6, rowY + 3, kindColor);
+            font.draw(MeowArchiveStyle.clamp(font, name, listX + listW - 6 - (listX + 6 + kindW + 4)),
                     listX + 6 + kindW + 4, rowY + 3, MeowArchiveStyle.TEXT_COLOR);
-            font.draw(pose, MeowArchiveStyle.clamp(font, target.id.toString(), listW - 12),
+            font.draw(MeowArchiveStyle.clamp(font, target.id.toString(), listW - 12),
                     listX + 6, rowY + 13, MeowArchiveStyle.SUBTEXT_COLOR);
         }
         MeowArchiveStyle.disableScissor();
@@ -190,7 +192,7 @@ public final class TargetPickerScreen extends Screen {
             int progress = Math.min(trackH - thumbH,
                     (int) ((long) scroll * (trackH - thumbH) / Math.max(1, maxScroll)));
             int barX = listX + listW - 4;
-            MeowArchiveStyle.fill(pose, barX, listY + 2 + progress, barX + 2,
+            MeowArchiveStyle.fill(barX, listY + 2 + progress, barX + 2,
                     listY + 2 + progress + thumbH, 0x66FFFFFF);
         }
     }

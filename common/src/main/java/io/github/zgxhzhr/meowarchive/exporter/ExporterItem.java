@@ -24,6 +24,6 @@ public class ExporterItem extends Item {
         if (level.isClientSide) {
             Minecraft.getInstance().setScreen(new ExporterScreen());
         }
-        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
+        return InteractionResultHolder.success(stack);
     }
 }

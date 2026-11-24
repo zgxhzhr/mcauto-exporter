@@ -12,6 +12,13 @@ import java.awt.image.BufferedImage;
  * 物品 / 方块物品图标：GUI 阶段离屏渲染，走原版物品栏管线。
  */
 public final class ItemIconRenderer {
+    /**
+     * 1.15/1.16 的固定管线方块模型在离屏渲染时拿不到 GUI 物品光照，
+     * 成品整体只有贴图亮度的约 0.43 倍（平面物品不受影响）。
+     * 这里按实测比例补回亮度，使方块图标与原版观感及其它版本归档一致。
+     */
+    private static final float BLOCK_GAIN = 1.8F;
+
     private ItemIconRenderer() {
     }
 
@@ -38,7 +45,11 @@ public final class ItemIconRenderer {
             mc.getItemRenderer().renderGuiItem(stack, 0, 0);
             RenderSystem.popMatrix();
 
-            return target.read();
+            BufferedImage image = target.read();
+            if (image != null && isGui3d(mc, stack)) {
+                brighten(image, BLOCK_GAIN);
+            }
+            return image;
         } catch (Throwable t) {
             ExporterLog.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
@@ -50,6 +61,33 @@ public final class ItemIconRenderer {
             main.getMainRenderTarget().bindWrite(true);
             restoreProjection(main);
             RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+        }
+    }
+
+    private static boolean isGui3d(Minecraft mc, ItemStack stack) {
+        try {
+            return mc.getItemRenderer().getModel(stack, null, null).isGui3d();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** 线性提亮，保留 alpha 与原图的明暗比例。 */
+    private static void brighten(BufferedImage image, float gain) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, y);
+                int a = argb >>> 24;
+                if (a == 0) {
+                    continue;
+                }
+                int r = Math.min(255, Math.round(((argb >> 16) & 0xFF) * gain));
+                int g = Math.min(255, Math.round(((argb >> 8) & 0xFF) * gain));
+                int b = Math.min(255, Math.round((argb & 0xFF) * gain));
+                image.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
         }
     }
 
