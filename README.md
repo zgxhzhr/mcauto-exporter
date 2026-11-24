@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **1.19.2 / Fabric 与 Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **1.16.5 / Fabric 与 Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -21,7 +21,7 @@ MIT License。
 
 1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，Forge 端无需额外前置。
 2. 进入一个世界。
-3. 输入 `/meowarchive` 或按界面打开导出器。
+3. 输入 `/meowarchive` 或手持喵呜机右键打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
 5. 点「开始导出」。
 
@@ -54,7 +54,7 @@ meowarchive-export/
 
 ## 构建
 
-需要 JDK 17。仓库采用 MultiLoader 结构，已实现 Fabric 与 Forge 客户端。
+构建需要 JDK 17（运行 Gradle），模组按 Java 8 编译。仓库采用 MultiLoader 结构，已实现 Fabric 与 Forge 客户端。
 
 ```bash
 ./gradlew :fabric:build
@@ -73,14 +73,14 @@ meowarchive-export/
 ## 项目结构
 
 ```text
-common/   与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
-fabric/   Fabric 入口、命令、平台服务实现
-forge/    Forge 入口、命令、平台服务实现
+common/       与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/       Fabric 入口、命令、平台服务实现
+forge/        Forge 入口、命令、平台服务实现
 ```
 
 ## 已知限制
 
-- 支持 1.19.2 的 Fabric 与 Forge 客户端。
+- 支持 1.16.5 的 Fabric 与 Forge 客户端。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 物品图标取默认 ItemStack，不导出 NBT 变体。
 - 配方、附魔暂不导出。
