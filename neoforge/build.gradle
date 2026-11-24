@@ -1,0 +1,29 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
+}
+
+neoForge {
+    version = neoforge_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run')
+            if (project.hasProperty('quickWorld')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quickWorld').toString()
+            }
+        }
+        server {
+            server()
+            gameDirectory = project.file('run')
+            programArguments.addAll '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
