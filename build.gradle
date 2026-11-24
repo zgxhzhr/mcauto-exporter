@@ -1,7 +1,10 @@
 plugins {
     id 'fabric-loom' version '1.9-SNAPSHOT' apply(false)
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)' apply(false)
 }
+
+// ForgeGradle 6 与 NeoGradle 7 各自带不同版本的 codechicken.diffpatch，
+// 放在同一个 buildscript 类路径上会让 NeoGradle 的 neoFormPatch 链接到错误版本。
+// 因此 ForgeGradle 只在 :forge、NeoGradle 只在 :neoforge 里声明，互不共处。
 
 allprojects {
     tasks.withType(JavaCompile).configureEach {

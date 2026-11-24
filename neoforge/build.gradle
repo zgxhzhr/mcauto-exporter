@@ -1,0 +1,47 @@
+plugins {
+    id 'multiloader-loader'
+    // NeoForge 20.2.93 未发布 moddev bundle 变体，ModDevGradle 无法解析；
+    // 这一档需要用 NeoGradle 7（NeoForge 官方 1.20.2 MDK 使用的构建插件）。
+    id 'net.neoforged.gradle.userdev' version '7.0.145'
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neoforge_version}"
+}
+
+repositories {
+    maven {
+        name = 'NeoForge'
+        url = 'https://maven.neoforged.net/releases'
+    }
+}
+
+runs {
+    configureEach {
+        modSource project.sourceSets.main
+        if (project.hasProperty('quickWorld')) {
+            systemProperty 'quickPlayWorld', project.property('quickWorld').toString()
+        }
+    }
+    client {
+        workingDirectory = project.file('run')
+    }
+    server {
+        workingDirectory = project.file('run')
+        programArguments.addAll '--nogui'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_name,
+                'Specification-Vendor'  : mod_author,
+                'Specification-Version' : project.jar.archiveVersion,
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor' : mod_author,
+                'Built-On-Minecraft'    : minecraft_version
+        ])
+    }
+}
