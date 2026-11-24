@@ -1,0 +1,19 @@
+Meow Archive Exporter
+Copyright (c) 2026 zgxhzhr
+
+This project is licensed under the MIT License.
+
+Bundled assets:
+- common/src/main/resources/assets/meowarchive/textures/item/miao_wu_ji.png
+  Original artwork contributed by the project author; distributed with this
+  repository under the MIT License.
+
+Third-party notes:
+- Fabric API is a runtime dependency (Apache-2.0), not bundled.
+- The in-game icon export approach (one target per frame, GUI-phase offscreen
+  framebuffer, pixel readback) originates from the author's own ZHR_SuperDBG
+  project and is re-licensed here under MIT.
+- LetMeSeeSee (LGPL-3.0) and IconRenderer (GPL-3.0) were consulted only for
+  their public output format and observed behaviour. No source code from those
+  projects is copied into this repository.
+- Minecraft is a trademark of Mojang Studios. No Mojang assets are bundled.
