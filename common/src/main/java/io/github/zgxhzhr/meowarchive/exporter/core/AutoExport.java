@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.platform.Services;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.TitleScreen;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,6 +17,9 @@ import java.nio.file.Path;
  */
 public final class AutoExport {
     private static final Gson GSON = new Gson();
+    private static String world = "";
+    private static boolean worldRequested;
+    private static int menuTicks;
     private static boolean loaded;
     private static String namespace = "";
     private static boolean exitWhenDone;
@@ -31,10 +35,11 @@ public final class AutoExport {
         if (!loaded) {
             load();
         }
+        Minecraft mc = Minecraft.getInstance();
+        launchWorldIfConfigured(mc);
         if (namespace.isBlank()) {
             return;
         }
-        Minecraft mc = Minecraft.getInstance();
         if (!started) {
             if (mc.level == null || mc.player == null || mc.screen != null) {
                 return;
@@ -66,6 +71,39 @@ public final class AutoExport {
         }
     }
 
+    /**
+     * 配置了 world 且还停在主菜单时，自动载入已有存档，省掉手动点击。
+     * 1.19.2 的 WorldOpenFlows#loadLevel(Screen, String) 就是「单人游戏 → 双击存档」这条路径。
+     */
+    /**
+     * 配置了 world 且停在主菜单时自动载入已有存档，参考 1.17.1 分支的做法：
+     * 等 40 个菜单 tick 再动手，只在 TitleScreen 上触发，失败只记错误不抛。
+     * 1.19.2 把「单人游戏 → 双击存档」收进了 WorldOpenFlows#loadLevel(Screen, String)。
+     */
+    private static void launchWorldIfConfigured(Minecraft mc) {
+        if (world.isBlank() || worldRequested || mc.level != null) {
+            return;
+        }
+        if (!(mc.screen instanceof TitleScreen)) {
+            return;
+        }
+        if (++menuTicks < 40) {
+            return;
+        }
+        worldRequested = true;
+        try {
+            boolean exists = mc.getLevelSource().levelExists(world);
+            ExporterLog.LOG.info("自动{}世界：{}", exists ? "载入" : "创建", world);
+            if (exists) {
+                mc.createWorldOpenFlows().loadLevel(mc.screen, world);
+            } else {
+                ExporterLog.LOG.error("存档不存在，无法自动进入：{}", world);
+            }
+        } catch (Throwable t) {
+            ExporterLog.LOG.error("自动进入世界失败: {}", t.toString());
+        }
+    }
+
     private static void finish() {
         finished = true;
         finishedAt = System.currentTimeMillis();
@@ -80,10 +118,15 @@ public final class AutoExport {
                 if (json != null) {
                     namespace = json.has("namespace") ? json.get("namespace").getAsString() : "";
                     exitWhenDone = json.has("exitWhenDone") && json.get("exitWhenDone").getAsBoolean();
+                    world = json.has("world") ? json.get("world").getAsString() : "";
                 }
             } catch (Exception e) {
                 ExporterLog.LOG.warn("读取 meowarchive-auto.json 失败: {}", e.toString());
             }
+        }
+        String propWorld = System.getProperty("meowarchive.autoWorld", "");
+        if (!propWorld.isBlank()) {
+            world = propWorld;
         }
         String prop = System.getProperty("meowarchive.autoNamespace", "");
         if (!prop.isBlank()) {
