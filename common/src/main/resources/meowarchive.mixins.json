@@ -1,0 +1,11 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "io.github.zgxhzhr.meowarchive.exporter.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "refmap": "meowarchive.refmap.json",
+    "client": [],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
