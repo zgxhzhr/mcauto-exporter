@@ -68,7 +68,7 @@ public final class ExportService {
             if (req.singleTarget == null) {
                 return "没有选择要导出的条目";
             }
-            targets = java.util.Collections.singletonList(req.singleTarget);
+            targets = List.of(req.singleTarget);
         } else {
             try {
                 targets = RegistryScanner.scan(req);
@@ -279,7 +279,7 @@ public final class ExportService {
         o.addProperty("output", output.toString());
         o.addProperty("startedAt", Instant.ofEpochMilli(startedAt).toString());
         o.addProperty("updatedAt", Instant.now().toString());
-        Files.write(output.resolve("status.json"), GSON.toJson(o).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(output.resolve("status.json"), GSON.toJson(o), StandardCharsets.UTF_8);
     }
 
     /** 每个条目一行：注册名 \t 原因；分失败 / 无可见模型 / 可疑三段。 */
@@ -291,7 +291,7 @@ public final class ExportService {
         appendSection(sb, "失败", failures);
         appendSection(sb, "无可见模型", noVisualTargets);
         appendSection(sb, "可疑", suspectTargets);
-        Files.write(output.resolve("failures.txt"), sb.toString().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(output.resolve("failures.txt"), sb.toString(), StandardCharsets.UTF_8);
     }
 
     private static void appendSection(StringBuilder sb, String title, Map<String, String> entries) {
@@ -317,14 +317,8 @@ public final class ExportService {
     private static String sampleIds(Map<String, String> entries) {
         List<String> ids = new ArrayList<>(entries.keySet());
         int shown = Math.min(3, ids.size());
-        StringBuilder sample = new StringBuilder();
-        for (int i = 0; i < shown; i++) {
-            if (i > 0) {
-                sample.append("、");
-            }
-            sample.append(ids.get(i));
-        }
-        return ids.size() > shown ? sample + " 等" : sample.toString();
+        String sample = String.join("、", ids.subList(0, shown));
+        return ids.size() > shown ? sample + " 等" : sample;
     }
 
     private static String displayName(Target target) {

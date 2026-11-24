@@ -9,7 +9,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -48,8 +47,12 @@ public final class RegistryScanner {
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
                 fillNames(t, lang, item.getDescriptionId());
-                t.creativeTab = creativeTab(item, mc);
-                t.tags = itemTags(item);
+                t.creativeTab = creativeTab(item, lang);
+                t.tags = net.minecraft.tags.ItemTags.getAllTags()
+                        .getMatchingTags(item)
+                        .stream()
+                        .map(ResourceLocation::toString)
+                        .collect(Collectors.joining(",", "[", "]"));
                 out.add(t);
             }
         }
@@ -78,7 +81,7 @@ public final class RegistryScanner {
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
-                if (t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty()) {
+                if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
                     // 技术性实体（中英文名都缺失），不参与导出
                     continue;
                 }
@@ -88,8 +91,8 @@ public final class RegistryScanner {
                 try {
                     Entity entity = type.create(mc.level);
                     if (entity != null) {
-                        if (entity instanceof net.minecraft.world.entity.LivingEntity) {
-                            t.maxHealth = ((net.minecraft.world.entity.LivingEntity) entity).getMaxHealth();
+                        if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+                            t.maxHealth = living.getMaxHealth();
                         }
                         t.fireImmune = entity.fireImmune();
                         t.tameable = entity instanceof TamableAnimal;
@@ -105,21 +108,6 @@ public final class RegistryScanner {
             }
         }
         return out;
-    }
-
-    /** 1.16.5 没有 ItemStack#getTags，从标签表反查该物品所属标签。 */
-    private static String itemTags(Item item) {
-        try {
-            java.util.Collection<?> tags = ItemTags.getAllTags().getMatchingTags(item);
-            List<String> ids = new ArrayList<>();
-            for (Object tag : tags) {
-                ids.add(String.valueOf(tag));
-            }
-            java.util.Collections.sort(ids);
-            return "[" + String.join(",", ids) + "]";
-        } catch (Throwable e) {
-            return "[]";
-        }
     }
 
     private static void fillNames(Target t, LanguagePair lang, String descId) {
@@ -157,15 +145,20 @@ public final class RegistryScanner {
         Map<String, String> out = new HashMap<>();
         boolean fromPack = false;
         try {
-            net.minecraft.server.packs.resources.ResourceManager rm = Minecraft.getInstance().getResourceManager();
-            java.util.Collection<ResourceLocation> files = rm.listResources("lang",
-                    path -> path.endsWith("/" + code + ".json") || path.equals(code + ".json"));
-            for (ResourceLocation file : files) {
-                fromPack = true;
-                try (java.io.InputStream in = rm.getResource(file).getInputStream()) {
+            var rm = Minecraft.getInstance().getResourceManager();
+            // 1.17.1 的 listResources 取不到 assets 目录里的原版语言文件（只从 jar 里列），
+            // 这里按命名空间直接取具体文件，原版 zh_cn 在 assets 资源包里也能读到。
+            java.util.LinkedHashSet<String> packNamespaces =
+                    new java.util.LinkedHashSet<>(
+                            io.github.zgxhzhr.meowarchive.exporter.platform.Services.PLATFORM.loadedModIds());
+            packNamespaces.add("minecraft");
+            for (String ns : packNamespaces) {
+                try (var in = rm.getResource(new ResourceLocation(ns, "lang/" + code + ".json"))
+                        .getInputStream()) {
+                    fromPack = true;
                     mergeLanguage(out, in);
                 } catch (Throwable ignored) {
-                    // 单个语言文件损坏不影响其它命名空间
+                    // 该命名空间没有这个语言文件
                 }
             }
         } catch (Throwable e) {
@@ -179,7 +172,7 @@ public final class RegistryScanner {
             namespaces.add("minecraft");
             ClassLoader cl = RegistryScanner.class.getClassLoader();
             for (String ns : namespaces) {
-                try (java.io.InputStream in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
+                try (var in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
                     if (in == null) {
                         continue;
                     }
@@ -201,27 +194,22 @@ public final class RegistryScanner {
         if (json == null) {
             return;
         }
-        for (java.util.Map.Entry<String, com.google.gson.JsonElement> field : json.entrySet()) {
+        for (var field : json.entrySet()) {
             if (field.getValue().isJsonPrimitive()) {
                 out.put(field.getKey(), field.getValue().getAsString());
             }
         }
     }
 
-    private static String creativeTab(Item item, Minecraft mc) {
+    private static String creativeTab(Item item, LanguagePair lang) {
         if (creativeTabs == null) {
             creativeTabs = new HashMap<>();
             for (CreativeModeTab tab : CreativeModeTab.TABS) {
-                // 搜索页包含所有物品，会把真实分类覆盖掉；快捷栏页在客户端填充时直接抛异常
-                if (tab == null || tab == CreativeModeTab.TAB_SEARCH || tab == CreativeModeTab.TAB_HOTBAR) {
+                // 搜索页包含所有物品，会把真实分类覆盖掉
+                if (tab == null || tab == CreativeModeTab.TAB_SEARCH) {
                     continue;
                 }
-                String name;
-                try {
-                    name = tab.getDisplayName().getString();
-                } catch (Throwable e) {
-                    name = "未知";
-                }
+                String name = tabName(tab, lang);
                 NonNullList<ItemStack> items = NonNullList.create();
                 try {
                     tab.fillItemList(items);
@@ -235,6 +223,24 @@ public final class RegistryScanner {
             }
         }
         return creativeTabs.getOrDefault(item, "未知");
+    }
+
+    /** 创造栏名称：1.17 没有公开的翻译键访问器，从显示名里的 TranslatableComponent 取键，
+     *  再用已加载的 zh_cn 表翻译；拿不到时退回当前语言的可读名。 */
+    private static String tabName(CreativeModeTab tab, LanguagePair lang) {
+        try {
+            net.minecraft.network.chat.Component display = tab.getDisplayName();
+            if (display instanceof net.minecraft.network.chat.TranslatableComponent) {
+                String key = ((net.minecraft.network.chat.TranslatableComponent) display).getKey();
+                String zh = lang.zh.get(key);
+                if (zh != null && !zh.isEmpty()) {
+                    return zh;
+                }
+            }
+            return display.getString();
+        } catch (Throwable e) {
+            return "未知";
+        }
     }
 
     private static final class LanguagePair {

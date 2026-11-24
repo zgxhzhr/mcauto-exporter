@@ -37,7 +37,7 @@ public final class AutoExport {
         if (!loaded) {
             load();
         }
-        if (namespace.trim().isEmpty()) {
+        if (namespace.isBlank()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
@@ -103,7 +103,7 @@ public final class AutoExport {
      * 全程无输入，供无人值守导出使用。
      */
     private static void launchWorldIfConfigured(Minecraft mc) {
-        if (world.trim().isEmpty() || worldRequested) {
+        if (world.isBlank() || worldRequested) {
             return;
         }
         if (!(mc.screen instanceof net.minecraft.client.gui.screens.TitleScreen)) {
@@ -136,7 +136,8 @@ public final class AutoExport {
                         net.minecraft.world.level.levelgen.WorldGenSettings.makeDefault(
                                 access.registryOrThrow(net.minecraft.core.Registry.DIMENSION_TYPE_REGISTRY),
                                 access.registryOrThrow(net.minecraft.core.Registry.BIOME_REGISTRY),
-                                access.registryOrThrow(net.minecraft.core.Registry.NOISE_GENERATOR_SETTINGS_REGISTRY)));
+                                access.registryOrThrow(
+                                        net.minecraft.core.Registry.NOISE_GENERATOR_SETTINGS_REGISTRY)));
             }
         } catch (Throwable t) {
             ExporterLog.LOG.error("自动进入世界失败: {}", t.toString());
@@ -165,8 +166,7 @@ public final class AutoExport {
         Path path = Services.PLATFORM.gameDir().resolve("config").resolve("meowarchive-auto.json");
         if (Files.isRegularFile(path)) {
             try {
-                JsonObject json = GSON.fromJson(
-                        new String(Files.readAllBytes(path), StandardCharsets.UTF_8), JsonObject.class);
+                JsonObject json = GSON.fromJson(Files.readString(path, StandardCharsets.UTF_8), JsonObject.class);
                 if (json != null) {
                     namespace = json.has("namespace") ? json.get("namespace").getAsString() : "";
                     world = json.has("world") ? json.get("world").getAsString() : "";
@@ -180,18 +180,18 @@ public final class AutoExport {
             }
         }
         String prop = System.getProperty("meowarchive.autoNamespace", "");
-        if (!prop.trim().isEmpty()) {
+        if (!prop.isBlank()) {
             namespace = prop;
             exitWhenDone = Boolean.getBoolean("meowarchive.autoExit");
         }
         String timeoutProp = System.getProperty("meowarchive.autoTimeoutSeconds", "");
-        if (!timeoutProp.trim().isEmpty()) {
+        if (!timeoutProp.isBlank()) {
             try {
                 timeoutSeconds = Math.max(10, Integer.parseInt(timeoutProp.trim()));
             } catch (NumberFormatException ignored) {
             }
         }
-        if (!namespace.trim().isEmpty()) {
+        if (!namespace.isBlank()) {
             ExporterLog.LOG.info("自动导出已配置：namespace={}, exit={}, timeout={}s",
                     namespace, exitWhenDone, timeoutSeconds);
         }

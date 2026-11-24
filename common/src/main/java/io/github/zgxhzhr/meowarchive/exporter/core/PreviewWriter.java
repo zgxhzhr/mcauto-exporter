@@ -6,9 +6,7 @@ import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import net.minecraft.world.item.BlockItem;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,7 +24,6 @@ import java.util.TreeMap;
  */
 public final class PreviewWriter {
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static String template;
 
     private PreviewWriter() {
     }
@@ -36,35 +33,16 @@ public final class PreviewWriter {
         for (Target target : targets) {
             byNamespace.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
         }
-        for (Map.Entry<String, List<Target>> entry : byNamespace.entrySet()) {
+        for (var entry : byNamespace.entrySet()) {
             String ns = entry.getKey();
-            List<Target> list = new ArrayList<>(entry.getValue());
-            list.sort(Comparator.comparing((Target t) -> t.kind).thenComparing(t -> t.id.toString()));
+            List<Target> list = entry.getValue().stream()
+                    .sorted(Comparator.comparing((Target t) -> t.kind)
+                            .thenComparing(t -> t.id.toString()))
+                    .toList();
             Path dir = root.resolve(ns);
             Files.createDirectories(dir);
-            Files.write(dir.resolve("preview.html"), html(ns, list).getBytes(StandardCharsets.UTF_8));
+            Files.writeString(dir.resolve("preview.html"), html(ns, list), StandardCharsets.UTF_8);
         }
-    }
-
-    /** 模板放在资源包里：老版本（Java 8）不支持文本块，也便于统一维护。 */
-    private static String template() {
-        if (template == null) {
-            try (InputStream in = PreviewWriter.class.getResourceAsStream("/assets/meowarchive/preview-template.html")) {
-                if (in == null) {
-                    throw new IOException("缺少 preview-template.html");
-                }
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
-                }
-                template = new String(out.toByteArray(), StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        return template;
     }
 
     private static String html(String ns, List<Target> targets) {
@@ -78,21 +56,19 @@ public final class PreviewWriter {
         StringBuilder cards = new StringBuilder();
         for (Target t : targets) {
             switch (t.kind) {
-                case ITEM:
+                case ITEM -> {
                     items++;
                     if (t.stack.getItem() instanceof BlockItem) {
                         blocks++;
                     }
-                    break;
-                case ENTITY:
+                }
+                case ENTITY -> {
                     entities++;
                     if (t.noVisual) {
                         noVisual.add(t.id.toString());
                     }
-                    break;
-                default:
-                    effects++;
-                    break;
+                }
+                case EFFECT -> effects++;
             }
             if (t.icons.containsKey(128) || t.icons.containsKey(32)) {
                 withIcon++;
@@ -102,27 +78,19 @@ public final class PreviewWriter {
             }
             cards.append(card(t));
         }
-        String fields = "<table><tbody>"
-                + "<tr><th>物品/方块</th><td>name、englishName、registerName、type、maxStacksSize、maxDurability、"
-                + "CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>"
-                + "<tr><th>实体</th><td>name、Englishname、mod、registerName、Icon、IconSmall、iconSource、"
-                + "noVisual、suspect、renderer、kind</td></tr>"
-                + "<tr><th>效果</th><td>name、Englishname、mod、registerName、category、effectCategory、color、"
-                + "instant、Icon、IconSmall、iconSource、iconMode、kind</td></tr>"
-                + "</tbody></table>";
+        String fields = """
+                <table><tbody>
+                <tr><th>物品/方块</th><td>name、englishName、registerName、type、maxStacksSize、maxDurability、CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>
+                <tr><th>实体</th><td>name、Englishname、mod、registerName、Icon、IconSmall、iconSource、noVisual、suspect、renderer、kind</td></tr>
+                <tr><th>效果</th><td>name、Englishname、mod、registerName、category、effectCategory、color、instant、Icon、IconSmall、iconSource、iconMode、kind</td></tr>
+                </tbody></table>""";
         StringBuilder noVisualLine = new StringBuilder();
         if (noVisual.isEmpty()) {
             noVisualLine.append("无");
         } else {
-            noVisualLine.append(noVisual.size()).append(" 条：");
-            for (int i = 0; i < noVisual.size(); i++) {
-                if (i > 0) {
-                    noVisualLine.append("、");
-                }
-                noVisualLine.append(noVisual.get(i));
-            }
+            noVisualLine.append(noVisual.size()).append(" 条：").append(String.join("、", noVisual));
         }
-        return template()
+        return TEMPLATE
                 .replace("__NS__", esc(ns))
                 .replace("__TOTAL__", String.valueOf(targets.size()))
                 .replace("__ITEMS__", String.valueOf(items))
@@ -151,32 +119,37 @@ public final class PreviewWriter {
                 : "<img src=\"data:image/png;base64," + img + "\" alt=\"\">";
         String meta = meta(t);
         String search = (t.nameZh + " " + t.nameEn + " " + t.id).toLowerCase(Locale.ROOT);
-        return "<article class=\"card\" data-k=\"" + kind + "\" data-s=\"" + esc(search) + "\">\n"
-                + "<div class=\"top\">" + thumb + "<div>\n"
-                + "<div class=\"name\">" + esc(displayName(t)) + "</div>\n"
-                + "<div class=\"sub\">" + esc(t.nameEn) + "</div>\n"
-                + badges + "\n"
-                + "<div class=\"meta\">" + esc(meta) + "</div>\n"
-                + "</div></div>\n"
-                + "<details><summary>原始 JSON</summary><pre class=\"raw\">" + esc(rawJson(t, kind))
-                + "</pre></details>\n"
-                + "</article>";
+        return """
+                <article class="card" data-k="__KIND__" data-s="__SEARCH__">
+                <div class="top">__THUMB__<div>
+                <div class="name">__NAME__</div>
+                <div class="sub">__EN__</div>
+                __BADGES__
+                <div class="meta">__META__</div>
+                </div></div>
+                <details><summary>原始 JSON</summary><pre class="raw">__RAW__</pre></details>
+                </article>"""
+                .replace("__KIND__", kind)
+                .replace("__SEARCH__", esc(search))
+                .replace("__THUMB__", thumb)
+                .replace("__NAME__", esc(displayName(t)))
+                .replace("__EN__", esc(t.nameEn))
+                .replace("__BADGES__", badges.toString())
+                .replace("__META__", esc(meta))
+                .replace("__RAW__", esc(rawJson(t, kind)));
     }
 
     private static String meta(Target t) {
-        switch (t.kind) {
-            case ITEM:
-                return String.format("%s · %s · 堆叠 %d · 耐久 %d · 创造栏 %s",
-                        t.stack.getItem() instanceof BlockItem ? "Block" : "Item",
-                        t.id, t.stack.getMaxStackSize(), t.stack.getMaxDamage(),
-                        t.creativeTab.isEmpty() ? "未知" : t.creativeTab);
-            case ENTITY:
-                return String.format("Entity · %s%s", t.id,
-                        t.renderer.isEmpty() ? "" : " · 渲染器 " + t.renderer);
-            default:
-                return String.format("MobEffect · %s · %s%s", t.id,
-                        t.effectCategory, t.instant ? " · 瞬间" : "");
-        }
+        return switch (t.kind) {
+            case ITEM -> String.format("%s · %s · 堆叠 %d · 耐久 %d · 创造栏 %s",
+                    t.stack.getItem() instanceof BlockItem ? "Block" : "Item",
+                    t.id, t.stack.getMaxStackSize(), t.stack.getMaxDamage(),
+                    t.creativeTab.isEmpty() ? "未知" : t.creativeTab);
+            case ENTITY -> String.format("Entity · %s%s", t.id,
+                    t.renderer.isEmpty() ? "" : " · 渲染器 " + t.renderer);
+            case EFFECT -> String.format("Effect · %s · %s%s", t.id,
+                    t.effectCategory, t.instant ? " · 瞬间" : "");
+        };
     }
 
     /** 与 LMS 输出同构的原始 JSON，图标字段折叠为长度说明。 */
@@ -191,7 +164,7 @@ public final class PreviewWriter {
         }
         o.addProperty("registerName", t.id.toString());
         switch (t.kind) {
-            case ITEM:
+            case ITEM -> {
                 o.addProperty("type", t.stack.getItem() instanceof BlockItem ? "Block" : "Item");
                 o.addProperty("maxStacksSize", t.stack.getMaxStackSize());
                 o.addProperty("maxDurability", t.stack.getMaxDamage());
@@ -199,8 +172,8 @@ public final class PreviewWriter {
                 o.addProperty("OredictList", t.tags);
                 o.addProperty("smallIcon", folded(t, 32));
                 o.addProperty("largeIcon", folded(t, 128));
-                break;
-            case ENTITY:
+            }
+            case ENTITY -> {
                 o.addProperty("Icon", folded(t, 128));
                 o.addProperty("IconSmall", folded(t, 32));
                 o.addProperty("iconSource", t.icons.isEmpty() ? "" : "render");
@@ -209,17 +182,13 @@ public final class PreviewWriter {
                 if (!t.renderer.isEmpty()) {
                     o.addProperty("renderer", t.renderer);
                 }
-                break;
-            default:
-                String category;
-                if ("BENEFICIAL".equals(t.effectCategory)) {
-                    category = "BUFF";
-                } else if ("HARMFUL".equals(t.effectCategory)) {
-                    category = "DEBUFF";
-                } else {
-                    category = "BUFF";
-                }
-                o.addProperty("category", category);
+            }
+            case EFFECT -> {
+                o.addProperty("category", switch (t.effectCategory) {
+                    case "BENEFICIAL" -> "BUFF";
+                    case "HARMFUL" -> "DEBUFF";
+                    default -> "BUFF";
+                });
                 o.addProperty("effectCategory", t.effectCategory);
                 o.addProperty("color", t.color);
                 o.addProperty("instant", t.instant);
@@ -227,14 +196,14 @@ public final class PreviewWriter {
                 o.addProperty("IconSmall", folded(t, 32));
                 o.addProperty("iconSource", "sprite");
                 o.addProperty("iconMode", "nearest");
-                break;
+            }
         }
         o.addProperty("kind", kind);
         return PRETTY.toJson(o);
     }
 
     private static String folded(Target t, int size) {
-        java.awt.image.BufferedImage image = t.icons.get(size);
+        var image = t.icons.get(size);
         if (image == null) {
             return "";
         }
@@ -249,7 +218,7 @@ public final class PreviewWriter {
     }
 
     private static String icon(Target t) {
-        java.awt.image.BufferedImage image = t.icons.get(128);
+        var image = t.icons.get(128);
         if (image == null) {
             image = t.icons.get(32);
         }
@@ -259,4 +228,89 @@ public final class PreviewWriter {
     private static String esc(String s) {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
+
+    private static final String TEMPLATE = """
+            <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>__NS__ · 交付预览</title><style>
+            :root{--bg:#101010;--panel:#211c17;--border:#6d4a2a;--accent:#d0a060;--dim:#9a8b7a}
+            *{box-sizing:border-box}
+            body{margin:0;background:var(--bg);color:#e8e0d5;font:14px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+            header{position:sticky;top:0;background:#171310;border-bottom:1px solid var(--border);padding:14px 20px;z-index:2}
+            header h1{margin:0;font-size:18px;color:var(--accent)}
+            header .info{color:var(--dim);font-size:12px;margin-top:4px}
+            .bar{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+            .tab{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:#1b150f;
+              color:var(--dim);cursor:pointer;font-size:12px}
+            .tab.active{color:#1b140d;background:var(--accent);border-color:var(--accent)}
+            input[type=search]{margin-left:auto;min-width:240px;padding:6px 10px;border-radius:6px;
+              border:1px solid #4b3521;background:#151210;color:#e8e0d5;outline:none;font-size:12px}
+            input[type=search]:focus{border-color:var(--accent)}
+            main{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;padding:20px}
+            .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}
+            .card.intro{grid-column:1/-1}
+            .top{display:flex;gap:14px;align-items:flex-start}
+            .top img{width:96px;height:96px;image-rendering:pixelated;background:#151210;
+              border:1px solid #3a2a1c;border-radius:8px}
+            .noicon{width:96px;height:96px;display:flex;align-items:center;justify-content:center;
+              color:var(--dim);border:1px dashed #3a2a1c;border-radius:8px;font-size:12px;flex:0 0 96px}
+            .name{font-size:17px;font-weight:600;color:#ffe082}
+            .sub{color:var(--dim);font-size:12px;min-height:16px}
+            .meta{color:#b9a78f;font-size:12px;margin-top:4px;word-break:break-all}
+            .badge{display:inline-block;font-size:11px;color:#1b140d;background:var(--accent);
+              border-radius:4px;padding:1px 7px;margin-bottom:6px}
+            .badge.warn{background:#a8574a;color:#ffe9e4;margin-left:4px}
+            h2,h3{color:#ffd08a;margin:16px 0 6px}
+            h2{font-size:19px}h3{font-size:16px}
+            table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+            th,td{border:1px solid #4b3521;padding:5px 8px;text-align:left}th{background:#2e241a;color:#ffd08a}
+            details{margin-top:8px;border-top:1px dashed #3a2a1c;padding-top:6px}
+            summary{cursor:pointer;color:var(--dim);font-size:12px}
+            pre.raw{margin:6px 0 0;padding:10px;background:#151210;border:1px solid #3a2a1c;border-radius:6px;
+              color:#c9bda8;font:11px/1.5 Consolas,monospace;white-space:pre-wrap;word-break:break-all;
+              max-height:340px;overflow:auto}
+            .kv{display:grid;grid-template-columns:88px 1fr;gap:2px 8px;font-size:12px;margin-top:6px}
+            .kv dt{color:var(--dim)}.kv dd{margin:0;color:#d8cbb5;word-break:break-all}
+            .empty{color:#7d6f60;font-style:italic;grid-column:1/-1;padding:40px;text-align:center}
+            </style></head><body>
+            <header><h1>__NS__ · 交付预览</h1>
+            <div class="info">__TOTAL__ 条资料 · 图标 __WITHICON__/__TOTAL__ · __NS___all.json</div>
+            <div class="bar">
+            <button class="tab active" data-k="all">全部</button>
+            <button class="tab" data-k="item">物品 / 方块</button>
+            <button class="tab" data-k="entity">实体</button>
+            <button class="tab" data-k="effect">效果</button>
+            <input type="search" id="q" placeholder="搜索名称 / 英文 / 注册名…">
+            </div></header>
+            <main id="grid">
+            <article class="card intro"><div class="badge">导出概览</div>
+            <h2>__NS__</h2>
+            <dl class="kv">
+            <dt>条目</dt><dd>__ITEMS__ 物品/方块（__BLOCKS__ 方块） + __ENTITIES__ 实体 + __EFFECTS__ 效果，共 __TOTAL__</dd>
+            <dt>图标</dt><dd>__WITHICON__/__TOTAL__</dd>
+            <dt>可疑</dt><dd>__SUSPECTS__</dd>
+            <dt>无视觉</dt><dd>__NOVISUAL__</dd>
+            </dl>
+            <h3>字段</h3>
+            __FIELDS__
+            </article>
+            __CARDS__
+            </main>
+            <script>
+            const grid=document.getElementById('grid'),q=document.getElementById('q');
+            let kind='all';
+            function apply(){
+              const kw=q.value.trim().toLowerCase();
+              grid.querySelectorAll('.card:not(.intro)').forEach(c=>{
+                const okKind = kind==='all'||c.dataset.k===kind;
+                const okKw = !kw||c.dataset.s.includes(kw);
+                c.style.display = okKind&&okKw ? '' : 'none';
+              });
+            }
+            document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+              document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+              t.classList.add('active'); kind=t.dataset.k; apply();
+            }));
+            q.addEventListener('input',apply);
+            </script>
+            </body></html>
+            """;
 }

@@ -19,8 +19,7 @@ public final class EffectIconRenderer {
         ResourceLocation texture = new ResourceLocation(
                 id.getNamespace(), "textures/mob_effect/" + id.getPath() + ".png");
         try {
-            net.minecraft.server.packs.resources.Resource resource =
-                    mc.getResourceManager().getResource(texture);
+            var resource = mc.getResourceManager().getResource(texture);
             try (InputStream in = resource.getInputStream()) {
                 BufferedImage source = ImageIO.read(in);
                 if (source == null) {
@@ -38,8 +37,7 @@ public final class EffectIconRenderer {
         ResourceLocation texture = new ResourceLocation(
                 id.getNamespace(), "textures/mob_effect/" + id.getPath() + ".png");
         try {
-            net.minecraft.server.packs.resources.Resource resource =
-                    mc.getResourceManager().getResource(texture);
+            var resource = mc.getResourceManager().getResource(texture);
             try (InputStream in = resource.getInputStream()) {
                 BufferedImage source = ImageIO.read(in);
                 return source == null ? 0 : ImageUtil.colorCount(source);

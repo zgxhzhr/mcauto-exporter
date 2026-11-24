@@ -107,50 +107,44 @@ public final class ExporterScreen extends Screen {
         visibleRows = Math.max(2, listH / ROW_H);
 
         int y = contentTop + 13;
-        modeButton = addButton(new WoodButton(rightX, y, rightW, 20, modeLabel(), () -> {
-            switch (mode) {
-                case FULL:
-                    mode = ExportMode.JSON_ONLY;
-                    break;
-                case JSON_ONLY:
-                    mode = ExportMode.ICONS_ONLY;
-                    break;
-                default:
-                    mode = ExportMode.FULL;
-                    break;
-            }
+        modeButton = addRenderableWidget(new WoodButton(rightX, y, rightW, 20, modeLabel(), () -> {
+            mode = switch (mode) {
+                case FULL -> ExportMode.JSON_ONLY;
+                case JSON_ONLY -> ExportMode.ICONS_ONLY;
+                default -> ExportMode.FULL;
+            };
             modeButton.setMessage(modeLabel());
         }));
 
         int half = (rightW - 8) / 2;
-        itemsButton = addButton(new WoodButton(rightX, y + 25, half, 20,
+        itemsButton = addRenderableWidget(new WoodButton(rightX, y + 25, half, 20,
                 new TextComponent("物品 / 方块"), () -> {
             items = !items;
             itemsButton.setChecked(items);
         }).withCheckBox(items));
-        entitiesButton = addButton(new WoodButton(rightX + rightW - half, y + 25, half, 20,
+        entitiesButton = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 25, half, 20,
                 new TextComponent("实体"), () -> {
             entities = !entities;
             entitiesButton.setChecked(entities);
         }).withCheckBox(entities));
-        effectsButton = addButton(new WoodButton(rightX, y + 50, rightW, 20,
+        effectsButton = addRenderableWidget(new WoodButton(rightX, y + 50, rightW, 20,
                 new TextComponent("效果"), () -> {
             effects = !effects;
             effectsButton.setChecked(effects);
         }).withCheckBox(effects));
 
-        size32Button = addButton(new WoodButton(rightX, y + 75, half, 20,
+        size32Button = addRenderableWidget(new WoodButton(rightX, y + 75, half, 20,
                 new TextComponent("32×32"), () -> {
             size32 = !size32;
             size32Button.setChecked(size32);
         }).withCheckBox(size32));
-        size128Button = addButton(new WoodButton(rightX + rightW - half, y + 75, half, 20,
+        size128Button = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 75, half, 20,
                 new TextComponent("128×128"), () -> {
             size128 = !size128;
             size128Button.setChecked(size128);
         }).withCheckBox(size128));
 
-        addButton(new WoodButton(rightX, y + 100, rightW, 20,
+        addRenderableWidget(new WoodButton(rightX, y + 100, rightW, 20,
                 new TextComponent("导出单个图标…"), () ->
                 Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
 
@@ -158,11 +152,11 @@ public final class ExporterScreen extends Screen {
         int closeW = 72;
         int openW = 92;
         int startW = Math.max(90, contentRight - contentLeft - closeW - openW - gap * 2);
-        startButton = addButton(new WoodButton(contentLeft, actionY, startW, 20,
+        startButton = addRenderableWidget(new WoodButton(contentLeft, actionY, startW, 20,
                 new TextComponent("开始导出"), this::start));
-        addButton(new WoodButton(contentLeft + startW + gap, actionY, openW, 20,
+        addRenderableWidget(new WoodButton(contentLeft + startW + gap, actionY, openW, 20,
                 new TextComponent("打开目录"), this::openOutput));
-        addButton(new WoodButton(contentRight - closeW, actionY, closeW, 20,
+        addRenderableWidget(new WoodButton(contentRight - closeW, actionY, closeW, 20,
                 new TextComponent("关闭"), this::onClose));
     }
 
@@ -233,7 +227,7 @@ public final class ExporterScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(PoseStack pose, int vOffset) {
+    public void renderBackground(PoseStack pose) {
         // 不使用原版模糊/泥土背景：纯色底更稳，也避免世界画面透上来降低可读性。
     }
 
@@ -383,13 +377,6 @@ public final class ExporterScreen extends Screen {
         return false;
     }
 
-    private static final class NsEntry {
-        final String id;
-        final String name;
-
-        NsEntry(String id, String name) {
-            this.id = id;
-            this.name = name;
-        }
+    private record NsEntry(String id, String name) {
     }
 }

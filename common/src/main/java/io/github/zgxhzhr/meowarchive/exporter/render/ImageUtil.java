@@ -17,7 +17,7 @@ public final class ImageUtil {
             return src;
         }
         BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g = out.createGraphics();
+        var g = out.createGraphics();
         g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                 src.getWidth() < size
                         ? java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR

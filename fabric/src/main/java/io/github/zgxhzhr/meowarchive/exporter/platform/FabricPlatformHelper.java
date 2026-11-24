@@ -23,7 +23,7 @@ public class FabricPlatformHelper implements IPlatformHelper {
     public List<String> loadedModIds() {
         return FabricLoader.getInstance().getAllMods().stream()
                 .map(mod -> mod.getMetadata().getId())
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
     }
 
     @Override

@@ -1,10 +1,11 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.opengl.GL11;
+import com.mojang.math.Matrix4f;
 
 import java.awt.image.BufferedImage;
 
@@ -12,6 +13,12 @@ import java.awt.image.BufferedImage;
  * 物品 / 方块物品图标：GUI 阶段离屏渲染，走原版物品栏管线。
  */
 public final class ItemIconRenderer {
+    /**
+     * 1.17 的 3D 方块走物品栏光照，实测比 1.15.2 归档暗约 17%；
+     * 原石 / 铁块 / 羊毛乘 1.2 后与 1.15.2 归档对齐（97.7 / 171.8 / 184.2 vs 98.2 / 170.8 / 182.2）。
+     */
+    private static final float BLOCK_GAIN = 1.2F;
+
     private ItemIconRenderer() {
     }
 
@@ -21,24 +28,35 @@ public final class ItemIconRenderer {
             return null;
         }
         OffscreenTarget target = null;
+        Matrix4f previousProjection = null;
         try {
+            // 上一轮可能还有未提交的批次，先冲到当前主目标，避免串进本次离屏纹理
+            mc.renderBuffers().bufferSource().endBatch();
+            previousProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
             target = new OffscreenTarget(size);
             target.begin();
 
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
-            // 1.16.5 还是固定管线：投影矩阵用 ortho 直接设置（左上原点，y 向下）。
-            setProjection(size, true);
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.setProjectionMatrix(
+                    Matrix4f.orthographic(0.0F, size, 0.0F, size, 1000.0F, 3000.0F));
 
-            // 16×16 的 GUI 物品放大到整张画布。物品栏管线的坐标原点是左上角，
-            // 与这里的 y 向下投影一致；读取像素时再做一次上下翻转即可。
-            RenderSystem.pushMatrix();
-            RenderSystem.scalef(size / 16.0F, size / 16.0F, 1.0F);
+            // 1.19.2 的 renderGuiItem 会自己平移 / 缩放并提交批次，
+            // 这里在模型视图栈上先放大到目标尺寸，物品中心落在画布中央。
+            PoseStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushPose();
+            modelView.scale(size / 16.0F, size / 16.0F, 1.0F);
+            RenderSystem.applyModelViewMatrix();
             mc.getItemRenderer().renderGuiItem(stack, 0, 0);
-            RenderSystem.popMatrix();
+            modelView.popPose();
+            RenderSystem.applyModelViewMatrix();
 
-            return target.read();
+            BufferedImage image = target.read();
+            if (image != null && isGui3d(mc, stack)) {
+                brighten(image, BLOCK_GAIN);
+            }
+            return image;
         } catch (Throwable t) {
             ExporterLog.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
@@ -48,36 +66,37 @@ public final class ItemIconRenderer {
             }
             Minecraft main = Minecraft.getInstance();
             main.getMainRenderTarget().bindWrite(true);
-            restoreProjection(main);
-            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+            if (previousProjection != null) {
+                RenderSystem.setProjectionMatrix(previousProjection);
+            }
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
     }
 
-    /** yDown=true 时原点在左上角（GUI 习惯），false 时左下角（实体渲染习惯）。 */
-    static void setProjection(int size, boolean yDown) {
-        RenderSystem.matrixMode(GL11.GL_PROJECTION);
-        RenderSystem.loadIdentity();
-        if (yDown) {
-            RenderSystem.ortho(0.0, size, size, 0.0, 1000.0, 3000.0);
-        } else {
-            RenderSystem.ortho(0.0, size, 0.0, size, 1000.0, 3000.0);
+    private static boolean isGui3d(Minecraft mc, ItemStack stack) {
+        try {
+            return mc.getItemRenderer().getModel(stack, mc.level, null, 0).isGui3d();
+        } catch (Throwable e) {
+            return false;
         }
-        RenderSystem.matrixMode(GL11.GL_MODELVIEW);
-        RenderSystem.loadIdentity();
-        // 原版 GUI 的模型视图带一个 -2000 的 Z 平移，物品/实体都画在 z≈0..100，
-        // 叠上平移后正好落进 ortho 的 1000~3000 深度范围；少了这一步所有几何都会被近平面裁掉。
-        RenderSystem.translatef(0.0F, 0.0F, -2000.0F);
     }
 
-    /** 还原 GUI 阶段的标准投影，避免影响后续 HUD 绘制。 */
-    static void restoreProjection(Minecraft mc) {
-        int width = mc.getWindow().getGuiScaledWidth();
-        int height = mc.getWindow().getGuiScaledHeight();
-        RenderSystem.matrixMode(GL11.GL_PROJECTION);
-        RenderSystem.loadIdentity();
-        RenderSystem.ortho(0.0, width, height, 0.0, 1000.0, 3000.0);
-        RenderSystem.matrixMode(GL11.GL_MODELVIEW);
-        RenderSystem.loadIdentity();
-        RenderSystem.translatef(0.0F, 0.0F, -2000.0F);
+    /** 线性提亮，保留 alpha 与原图明暗比例。 */
+    private static void brighten(BufferedImage image, float gain) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, y);
+                int a = argb >>> 24;
+                if (a == 0) {
+                    continue;
+                }
+                int r = Math.min(255, Math.round(((argb >> 16) & 0xFF) * gain));
+                int g = Math.min(255, Math.round(((argb >> 8) & 0xFF) * gain));
+                int b = Math.min(255, Math.round((argb & 0xFF) * gain));
+                image.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
     }
 }

@@ -12,11 +12,9 @@ public final class Services {
     }
 
     private static <T> T load(Class<T> clazz) {
-        java.util.Iterator<T> iterator = ServiceLoader.load(clazz).iterator();
-        if (!iterator.hasNext()) {
-            throw new NullPointerException("缺少平台实现: " + clazz.getName());
-        }
-        T service = iterator.next();
+        T service = ServiceLoader.load(clazz)
+                .findFirst()
+                .orElseThrow(() -> new NullPointerException("缺少平台实现: " + clazz.getName()));
         ExporterLog.LOG.debug("已加载平台服务 {}", service);
         return service;
     }

@@ -13,13 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TreeSet;
 
 /**
  * 按命名空间分目录输出 LMS 兼容 JSONL：&lt;ns&gt;/&lt;ns&gt;_items.json、&lt;ns&gt;/&lt;ns&gt;_entities.json。
@@ -38,32 +35,26 @@ public final class LmsWriter {
         Map<String, List<Target>> effects = new LinkedHashMap<>();
         for (Target target : targets) {
             switch (target.kind) {
-                case ITEM:
-                    items.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
-                    break;
-                case ENTITY:
-                    entities.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
-                    break;
-                default:
-                    effects.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
-                    break;
+                case ITEM -> items.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
+                case ENTITY -> entities.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
+                case EFFECT -> effects.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
             }
         }
-        for (Map.Entry<String, List<Target>> entry : items.entrySet()) {
+        for (var entry : items.entrySet()) {
             List<JsonObject> lines = new ArrayList<>();
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
                     .forEach(t -> lines.add(itemJson(t, includeIcons)));
             writeJsonl(root.resolve(entry.getKey()).resolve(entry.getKey() + "_items.json"), lines);
         }
-        for (Map.Entry<String, List<Target>> entry : entities.entrySet()) {
+        for (var entry : entities.entrySet()) {
             List<JsonObject> lines = new ArrayList<>();
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
                     .forEach(t -> lines.add(entityJson(t, includeIcons)));
             writeJsonl(root.resolve(entry.getKey()).resolve(entry.getKey() + "_entities.json"), lines);
         }
-        for (Map.Entry<String, List<Target>> entry : effects.entrySet()) {
+        for (var entry : effects.entrySet()) {
             List<JsonObject> lines = new ArrayList<>();
             entry.getValue().stream()
                     .sorted(Comparator.comparing(t -> t.id.toString()))
@@ -71,18 +62,14 @@ public final class LmsWriter {
             writeJsonl(root.resolve(entry.getKey()).resolve(entry.getKey() + "_effects.json"), lines);
         }
         // 合并文件：物品 → 实体 → 效果依次排列，每条补 kind 字段
-        TreeSet<String> namespaces = new TreeSet<>();
+        var namespaces = new java.util.TreeSet<String>();
         namespaces.addAll(items.keySet());
         namespaces.addAll(entities.keySet());
         namespaces.addAll(effects.keySet());
         for (String ns : namespaces) {
             List<JsonObject> lines = new ArrayList<>();
-            for (Map<String, List<Target>> group : Arrays.asList(items, entities, effects)) {
-                List<Target> list = group.get(ns);
-                if (list == null) {
-                    list = new ArrayList<>();
-                }
-                list.stream()
+            for (Map<String, List<Target>> group : List.of(items, entities, effects)) {
+                group.getOrDefault(ns, List.of()).stream()
                         .sorted(Comparator.comparing(t -> t.id.toString()))
                         .forEach(t -> lines.add(mergedJson(t, includeIcons, neutralAs)));
             }
@@ -91,19 +78,12 @@ public final class LmsWriter {
     }
 
     private static JsonObject mergedJson(Target t, boolean includeIcons, String neutralAs) {
-        JsonObject o;
-        switch (t.kind) {
-            case ITEM:
-                o = itemJson(t, includeIcons);
-                break;
-            case ENTITY:
-                o = entityJson(t, includeIcons);
-                break;
-            default:
-                o = effectJson(t, includeIcons, neutralAs);
-                break;
-        }
-        o.addProperty("kind", t.kind.name().toLowerCase(Locale.ROOT));
+        JsonObject o = switch (t.kind) {
+            case ITEM -> itemJson(t, includeIcons);
+            case ENTITY -> entityJson(t, includeIcons);
+            case EFFECT -> effectJson(t, includeIcons, neutralAs);
+        };
+        o.addProperty("kind", t.kind.name().toLowerCase(java.util.Locale.ROOT));
         return o;
     }
 
@@ -148,14 +128,11 @@ public final class LmsWriter {
         o.addProperty("Englishname", t.nameEn);
         o.addProperty("mod", t.namespace());
         o.addProperty("registerName", t.id.toString());
-        String category;
-        if ("BENEFICIAL".equals(t.effectCategory)) {
-            category = "BUFF";
-        } else if ("HARMFUL".equals(t.effectCategory)) {
-            category = "DEBUFF";
-        } else {
-            category = "skip".equalsIgnoreCase(neutralAs) ? "BUFF" : neutralAs;
-        }
+        String category = switch (t.effectCategory) {
+            case "BENEFICIAL" -> "BUFF";
+            case "HARMFUL" -> "DEBUFF";
+            default -> "skip".equalsIgnoreCase(neutralAs) ? "BUFF" : neutralAs;
+        };
         o.addProperty("category", category);
         o.addProperty("effectCategory", t.effectCategory);
         o.addProperty("color", t.color);
@@ -181,7 +158,7 @@ public final class LmsWriter {
         if (!includeIcons) {
             return "";
         }
-        java.awt.image.BufferedImage image = t.icons.get(size);
+        var image = t.icons.get(size);
         return image == null ? "" : ImageUtil.base64(image);
     }
 
@@ -191,6 +168,6 @@ public final class LmsWriter {
         for (JsonObject line : lines) {
             sb.append(GSON.toJson(line)).append('\n');
         }
-        Files.write(file, sb.toString().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
     }
 }

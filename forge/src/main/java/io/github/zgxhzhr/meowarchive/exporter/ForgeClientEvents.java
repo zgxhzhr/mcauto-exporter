@@ -5,10 +5,9 @@ import io.github.zgxhzhr.meowarchive.exporter.core.AutoExport;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
 import io.github.zgxhzhr.meowarchive.exporter.gui.ExporterScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraft.command.Commands;
+import net.minecraftforge.client.event.ClientChatEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -21,7 +20,7 @@ public final class ForgeClientEvents {
         bus.addListener(ForgeClientEvents::clientSetup);
         MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::clientTick);
         MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::renderGui);
-        MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::registerClientCommands);
+        MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::clientChat);
     }
 
     private static void clientSetup(FMLClientSetupEvent event) {
@@ -45,11 +44,15 @@ public final class ForgeClientEvents {
         ExportService.get().onHudRender(event.getMatrixStack());
     }
 
-    private static void registerClientCommands(RegisterCommandsEvent event) {
-        // 1.16.5 没有独立的客户端指令事件，用通用指令事件注册；切界面必须回主线程。
-        event.getDispatcher().register(Commands.literal("meowarchive").executes(context -> {
-            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(new ExporterScreen()));
-            return 1;
-        }));
+    /**
+     * 1.17.1 的 Forge 还没有 RegisterClientCommandsEvent（1.18+ 才有），
+     * 这里改为拦截聊天输入里的 /meowarchive，效果与客户端命令一致。
+     */
+    private static void clientChat(ClientChatEvent event) {
+        if (!"/meowarchive".equals(event.getMessage().trim())) {
+            return;
+        }
+        event.setCanceled(true);
+        Minecraft.getInstance().setScreen(new ExporterScreen());
     }
 }

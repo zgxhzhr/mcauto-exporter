@@ -8,8 +8,9 @@ import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 
 import java.util.ArrayList;
@@ -75,8 +76,8 @@ public final class TargetPickerScreen extends Screen {
         search = new EditBox(font, contentLeft, panelY + 34, listW, 18, new TextComponent("搜索"));
         search.setMaxLength(128);
         search.setResponder(text -> refresh());
-        addButton(search);
-        addButton(new WoodButton(contentRight - 80, actionY, 80, 20,
+        addRenderableWidget(search);
+        addRenderableWidget(new WoodButton(contentRight - 80, actionY, 80, 20,
                 new TextComponent("返回"), this::onClose));
         refresh();
     }
@@ -108,7 +109,7 @@ public final class TargetPickerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(PoseStack pose, int vOffset) {
+    public void renderBackground(PoseStack pose) {
         // 纯色底，不用原版模糊背景
     }
 
@@ -155,18 +156,18 @@ public final class TargetPickerScreen extends Screen {
             String kind;
             int kindColor;
             switch (target.kind) {
-                case ITEM:
+                case ITEM -> {
                     kind = "[物品]";
                     kindColor = 0xFFFFD966;
-                    break;
-                case ENTITY:
+                }
+                case ENTITY -> {
                     kind = "[实体]";
                     kindColor = 0xFF66E0E0;
-                    break;
-                default:
+                }
+                default -> {
                     kind = "[效果]";
                     kindColor = 0xFFCC99FF;
-                    break;
+                }
             }
             String name = !target.nameZh.isEmpty() ? target.nameZh : target.nameEn;
             if (name.isEmpty()) {
