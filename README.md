@@ -2,6 +2,8 @@
 
 Minecraft **1.21.1 / Fabric** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
+> 本分支是 Fabric 单模块原型（mod id `mcauto`，命令 `/mcauto`）。正式版本见各 Minecraft 版本分支，采用 MultiLoader 结构并提供 Fabric / Forge / NeoForge 客户端。
+
 MIT License。
 
 ## 功能
@@ -10,7 +12,7 @@ MIT License。
 - 实体图标：128×128 离屏渲染，失败/空白会标记
 - BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
 - 物品 `<ns>.json`、实体 `<ns>_entity.json` 与 LMS 字段一致
-- 效果 `<ns>_effect.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 效果 `<ns>_effect.json` 为本仓库扩展，字段见 `mcauto-exporter/docs/lms-json.md`
 - 进度、日志、错误都在界面内显示
 
 ## 使用
@@ -46,13 +48,19 @@ mcauto-export/
 
 ## 构建
 
-需要 JDK 21。
+需要 JDK 21。仓库根目录的 Gradle wrapper 缺少 `gradle/wrapper` 文件，需用本机 Gradle 9 构建。
 
 ```bash
-./gradlew build
+gradle build
 ```
 
 产物在 `build/libs/`。
+
+开发客户端：
+
+```bash
+gradle runClient
+```
 
 ## 已知限制
 
