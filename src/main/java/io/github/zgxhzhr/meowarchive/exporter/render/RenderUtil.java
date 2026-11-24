@@ -17,7 +17,7 @@ final class RenderUtil {
         Minecraft mc = Minecraft.getMinecraft();
         mc.getFramebuffer().bindFramebuffer(true);
 
-        ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        ScaledResolution sr = new ScaledResolution(mc);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
         GL11.glOrtho(0.0D, sr.getScaledWidth(), sr.getScaledHeight(), 0.0D, 1000.0D, 3000.0D);

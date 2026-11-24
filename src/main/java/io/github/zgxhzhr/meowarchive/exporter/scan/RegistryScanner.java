@@ -1,7 +1,7 @@
 package io.github.zgxhzhr.meowarchive.exporter.scan;
 
-import cpw.mods.fml.common.Loader;
-import cpw.mods.fml.common.ModContainer;
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.ModContainer;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
@@ -73,8 +73,8 @@ public final class RegistryScanner {
     public static java.util.Set<String> contentNamespaces() {
         java.util.Set<String> out = new java.util.HashSet<>();
         try {
-            cpw.mods.fml.common.registry.FMLControlledNamespacedRegistry<Item> registry =
-                    cpw.mods.fml.common.registry.GameData.getItemRegistry();
+            net.minecraftforge.fml.common.registry.FMLControlledNamespacedRegistry<Item> registry =
+                    net.minecraftforge.fml.common.registry.GameData.getItemRegistry();
             for (Object keyObj : registry.getKeys()) {
                 out.add(toResourceLocation(String.valueOf(keyObj)).getResourceDomain());
             }
@@ -90,8 +90,8 @@ public final class RegistryScanner {
         } catch (Throwable ignored) {
         }
         try {
-            Map<String, Class> mapping = EntityList.stringToClassMapping;
-            for (Map.Entry<String, Class> entry : mapping.entrySet()) {
+            Map<String, Class<? extends Entity>> mapping = EntityList.stringToClassMapping;
+            for (Map.Entry<String, Class<? extends Entity>> entry : mapping.entrySet()) {
                 out.add(entityId(entry.getKey(), entry.getValue()).getResourceDomain());
             }
         } catch (Throwable ignored) {
@@ -125,11 +125,11 @@ public final class RegistryScanner {
 
     private static void scanItems(ExportRequest request, LanguagePair lang, List<Target> out) {
         try {
-            cpw.mods.fml.common.registry.FMLControlledNamespacedRegistry<Item> registry =
-                    cpw.mods.fml.common.registry.GameData.getItemRegistry();
+            net.minecraftforge.fml.common.registry.FMLControlledNamespacedRegistry<Item> registry =
+                    net.minecraftforge.fml.common.registry.GameData.getItemRegistry();
             for (Object keyObj : registry.getKeys()) {
                 String key = String.valueOf(keyObj);
-                Object value = registry.getObject(key);
+                Object value = registry.getObject(new ResourceLocation(key));
                 if (!(value instanceof Item)) {
                     continue;
                 }
@@ -218,8 +218,8 @@ public final class RegistryScanner {
     @SuppressWarnings("unchecked")
     private static void scanEntities(ExportRequest request, LanguagePair lang, Minecraft mc, List<Target> out) {
         try {
-            Map<String, Class> mapping = EntityList.stringToClassMapping;
-            for (Map.Entry<String, Class> entry : mapping.entrySet()) {
+            Map<String, Class<? extends Entity>> mapping = EntityList.stringToClassMapping;
+            for (Map.Entry<String, Class<? extends Entity>> entry : mapping.entrySet()) {
                 String name = entry.getKey();
                 if (name == null || name.isEmpty()) {
                     continue;
@@ -254,8 +254,8 @@ public final class RegistryScanner {
                         t.fireImmune = entity.isImmuneToFire();
                         t.tameable = entity instanceof EntityTameable;
                         try {
-                            Object renderer = net.minecraft.client.renderer.entity.RenderManager.instance
-                                    .getEntityRenderObject(entity);
+                            Object renderer = net.minecraft.client.Minecraft.getMinecraft()
+                                    .getRenderManager().getEntityRenderObject(entity);
                             if (renderer != null) {
                                 t.renderer = renderer.getClass().getName();
                             }

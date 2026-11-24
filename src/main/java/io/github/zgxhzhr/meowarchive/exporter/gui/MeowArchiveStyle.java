@@ -113,7 +113,7 @@ final class MeowArchiveStyle {
 
     /** 列表裁剪：换算成窗口像素坐标后交给 GL。 */
     static void enableScissor(Minecraft mc, int x, int y, int w, int h) {
-        ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        ScaledResolution sr = new ScaledResolution(mc);
         int scale = sr.getScaleFactor();
         int sx = x * scale;
         int sy = mc.displayHeight - (y + h) * scale;

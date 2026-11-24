@@ -2,9 +2,9 @@ package io.github.zgxhzhr.meowarchive.exporter;
 
 import io.github.zgxhzhr.meowarchive.exporter.client.ClientEvents;
 import io.github.zgxhzhr.meowarchive.exporter.client.CommandMeowArchive;
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.client.ClientCommandHandler;
 
 /**
@@ -22,6 +22,14 @@ public final class MeowArchive {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ModItems.register();
+        if (event.getSide().isClient()) {
+            // 1.8.9 的物品模型不会按注册名自动绑定，必须显式登记 inventory 模型位置，
+            // 否则会渲染成黑紫的缺失模型方块。
+            net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                    ModItems.MIAO_WU_JI, 0,
+                    new net.minecraft.client.resources.model.ModelResourceLocation(
+                            MOD_ID + ":miao_wu_ji", "inventory"));
+        }
         ClientEvents.register();
     }
 

@@ -2,8 +2,8 @@ package io.github.zgxhzhr.meowarchive.exporter.client;
 
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
-import cpw.mods.fml.common.Loader;
-import cpw.mods.fml.common.ModContainer;
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.ModContainer;
 
 import java.io.File;
 import java.nio.file.Path;

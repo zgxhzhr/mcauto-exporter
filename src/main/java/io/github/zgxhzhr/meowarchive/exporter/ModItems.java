@@ -1,6 +1,6 @@
 package io.github.zgxhzhr.meowarchive.exporter;
 
-import cpw.mods.fml.common.registry.GameRegistry;
+import net.minecraftforge.fml.common.registry.GameRegistry;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 
@@ -24,6 +24,8 @@ public final class ModItems {
     }
 
     public static void register() {
-        GameRegistry.registerItem(MIAO_WU_JI, "miao_wu_ji");
+        // 1.8.9 的 registerItem(item, name) 会把 name 直接当作注册名解析，
+        // 不带命名空间时会落到 minecraft: 下，模型也就去 minecraft 里找（表现为黑紫方块）。
+        GameRegistry.registerItem(MIAO_WU_JI, MOD_ID + ":miao_wu_ji");
     }
 }

@@ -53,10 +53,10 @@ class WoodButton extends GuiButton {
                     this.yPosition + (this.height - size) / 2, this.checked);
             textLeft += 6 + size + 4;
         }
-        int textWidth = mc.fontRenderer.getStringWidth(this.displayString);
+        int textWidth = mc.fontRendererObj.getStringWidth(this.displayString);
         int tx = textLeft + (textRight - textLeft - textWidth) / 2;
         int ty = this.yPosition + (this.height - 8) / 2;
-        mc.fontRenderer.drawString(this.displayString, tx, ty, color, false);
+        mc.fontRendererObj.drawString(this.displayString, tx, ty, color, false);
     }
 
     @Override

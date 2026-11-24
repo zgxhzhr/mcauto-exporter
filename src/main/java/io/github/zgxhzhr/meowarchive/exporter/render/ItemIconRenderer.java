@@ -39,8 +39,7 @@ public final class ItemIconRenderer {
             // 不用 renderItemAndEffectIntoGUI：它会给附魔物品叠一层 glint，
             // 而 glint 的混合模式会把整块区域的目标 alpha 清零，离屏读回来就是全透明。
             // 静态图标只需要物品本体，跳过 glint 也更稳定。
-            RenderItem.getInstance().renderItemIntoGUI(mc.fontRenderer,
-                    mc.getTextureManager(), stack, 0, 0);
+            mc.getRenderItem().renderItemIntoGUI(stack, 0, 0);
             GL11.glPopMatrix();
 
             RenderHelper.disableStandardItemLighting();

@@ -1,15 +1,15 @@
 # Meow Archive Exporter
 
-Minecraft **1.7.10 / Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **1.8.9 / Forge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
 ## 功能
 
-- 物品 / 方块（BlockItem）图标：32×32、128×128，GUI 内真实渲染
+- 物品 / 方块（ItemBlock）图标：32×32、128×128，GUI 内真实渲染
 - 实体图标：128×128 离屏渲染，失败/空白会标记
 - 技术性实体（中英文名都缺失，如内部辅助实体）直接跳过，不写入 JSON
-- BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
+- BUFF / DEBUFF 图标：读取原版状态效果图标精灵表，NEAREST 放大，并校验颜色数
 - 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
 - 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见源码注释
 - 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
@@ -19,7 +19,7 @@ MIT License。
 
 ## 使用
 
-1. 把 jar 放进 `mods/`。需要对应版本的 Forge，无需其他前置。
+1. 把 jar 放进 `mods/`。需要 Forge 11.15.1.2318（1.8.9），无需其他前置。
 2. 进入一个世界。
 3. 输入 `/meowarchive` 或手持喵呜机右键打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
@@ -54,13 +54,13 @@ meowarchive-export/
 
 ## 构建
 
-构建需要 JDK 17（运行 Gradle 9），模组按 Java 8 编译。
+需要 JDK 8；ForgeGradle 2.1 只支持到 Gradle 2.14.1，仓库自带对应 wrapper。
 
 ```bash
 ./gradlew build
 ```
 
-产物在 `build/libs/`。
+产物在 `build/libs/meowarchive-forge-1.8.9-1.0.0.jar`。
 
 开发客户端：
 
@@ -72,12 +72,19 @@ meowarchive-export/
 
 ```text
 src/main/java/       导出逻辑、界面与平台代码
-src/main/resources/  mcmod.info、语言文件、模型与贴图
+src/main/resources/  mcmod.info、语言文件、物品模型与贴图
 ```
+
+## 1.8.9 移植要点
+
+- Forge 包名是 `net.minecraftforge.fml.*`（不再是 `cpw.mods.fml.*`），所有事件都走 `MinecraftForge.EVENT_BUS`。
+- 物品必须显式登记模型：`GameRegistry.registerItem(item, "meowarchive:miao_wu_ji")`（带命名空间）+ `ModelLoader.setCustomModelResourceLocation(..., "inventory")`，否则显示黑紫缺失模型。
+- 物品模型 `models/item/miao_wu_ji.json` 使用 `builtin/generated` 父模型，贴图在 `textures/items/`。
+- 语言文件仍是 `lang/en_US.lang` / `lang/zh_CN.lang`（大写地区码）。
 
 ## 已知限制
 
-- 支持 1.7.10 的 Forge 客户端。
+- 支持 1.8.9 的 Forge 客户端。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 物品图标取默认 ItemStack，不导出 NBT 变体。
 - 配方、附魔暂不导出。

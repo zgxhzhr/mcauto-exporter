@@ -1,15 +1,1 @@
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        maven {
-            name = 'GTNH'
-            url = 'https://nexus.gtnewhorizons.com/repository/releases/'
-        }
-        maven {
-            name = 'Forge'
-            url = 'https://maven.minecraftforge.net/'
-        }
-    }
-}
-
-rootProject.name = 'meowarchive-1.7.10'
+rootProject.name = 'meowarchive-1.8.9'

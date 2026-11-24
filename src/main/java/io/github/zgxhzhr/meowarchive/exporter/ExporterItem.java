@@ -14,7 +14,6 @@ public class ExporterItem extends Item {
 
     public ExporterItem() {
         setUnlocalizedName(MeowArchive.MOD_ID + ".miao_wu_ji");
-        setTextureName(MeowArchive.MOD_ID + ":miao_wu_ji");
         setMaxStackSize(1);
         setCreativeTab(ModItems.TAB);
     }

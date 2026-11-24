@@ -1,30 +1,29 @@
-plugins {
-    id 'java'
-    id 'com.gtnewhorizons.retrofuturagradle' version '2.0.6'
-}
-
-version = project.version
-group = 'io.github.zgxhzhr.meowarchive'
-base {
-    archivesName = 'meowarchive-forge-1.7.10'
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(8)
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT'
     }
 }
 
-minecraft {
-    mcVersion = '1.7.10'
-    username = 'Developer'
-    mcpMappingChannel = 'stable'
-    mcpMappingVersion = '12'
-    javaCompatibilityVersion = 8
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = project.version
+group = 'io.github.zgxhzhr.meowarchive'
+archivesBaseName = 'meowarchive-forge-1.8.9'
+
+sourceCompatibility = targetCompatibility = '1.8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
+minecraft {
+    version = '1.8.9-11.15.1.2318-1.8.9'
+    runDir = 'run'
+    mappings = 'stable_22'
 }
 
 repositories {
@@ -32,10 +31,12 @@ repositories {
 }
 
 processResources {
-    filteringCharset = 'UTF-8'
     inputs.property 'version', project.version
-    filesMatching('mcmod.info') {
-        expand 'version': project.version, 'mcversion': '1.7.10'
+    // Gradle 2.x 默认按平台编码（Windows 上是 GBK）读取资源，mcmod.info 里的中文会乱码
+    filteringCharset = 'UTF-8'
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': '1.8.9'
     }
 }
 

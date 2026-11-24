@@ -7,8 +7,8 @@ import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Mouse;
 
@@ -340,7 +340,7 @@ public final class ExporterScreen extends GuiScreen {
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws java.io.IOException {
         if (mouseButton == 0 && MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
             int row = (mouseY - listY) / ROW_H;
             int idx = scroll + row;
@@ -356,7 +356,7 @@ public final class ExporterScreen extends GuiScreen {
     }
 
     @Override
-    public void handleMouseInput() {
+    public void handleMouseInput() throws java.io.IOException {
         super.handleMouseInput();
         int delta = Mouse.getEventDWheel();
         if (delta != 0 && namespaces.size() > visibleRows) {

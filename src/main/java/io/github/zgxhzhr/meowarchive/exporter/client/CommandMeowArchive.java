@@ -1,8 +1,8 @@
 package io.github.zgxhzhr.meowarchive.exporter.client;
 
 import io.github.zgxhzhr.meowarchive.exporter.gui.ExporterScreen;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
@@ -43,7 +43,8 @@ public final class CommandMeowArchive extends CommandBase {
     }
 
     @Override
-    public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+    public List addTabCompletionOptions(ICommandSender sender, String[] args,
+                                        net.minecraft.util.BlockPos pos) {
         return new ArrayList<String>();
     }
 

@@ -5,8 +5,8 @@ import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import org.lwjgl.input.Mouse;
@@ -72,7 +72,7 @@ public final class TargetPickerScreen extends GuiScreen {
         visible = Math.max(2, listH / ROW_H);
         messageY = actionY - 14;
 
-        search = new GuiTextField(fontRendererObj, contentLeft, panelY + 34, listW, 18);
+        search = new GuiTextField(0, fontRendererObj, contentLeft, panelY + 34, listW, 18);
         search.setMaxStringLength(128);
         search.setFocused(true);
         buttonList.add(new WoodButton(1, contentRight - 80, actionY, 80, 20, "返回",
@@ -190,7 +190,7 @@ public final class TargetPickerScreen extends GuiScreen {
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws java.io.IOException {
         search.mouseClicked(mouseX, mouseY, mouseButton);
         if (mouseButton == 0 && MeowArchiveStyle.inRect(listX, listY, listW, listH, mouseX, mouseY)) {
             int row = (mouseY - listY) / ROW_H;
@@ -204,7 +204,7 @@ public final class TargetPickerScreen extends GuiScreen {
     }
 
     @Override
-    protected void keyTyped(char typedChar, int keyCode) {
+    protected void keyTyped(char typedChar, int keyCode) throws java.io.IOException {
         if (search.textboxKeyTyped(typedChar, keyCode)) {
             refresh();
             return;
@@ -213,7 +213,7 @@ public final class TargetPickerScreen extends GuiScreen {
     }
 
     @Override
-    public void handleMouseInput() {
+    public void handleMouseInput() throws java.io.IOException {
         super.handleMouseInput();
         int delta = Mouse.getEventDWheel();
         if (delta != 0 && filtered.size() > visible) {

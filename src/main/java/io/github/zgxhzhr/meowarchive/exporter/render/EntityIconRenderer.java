@@ -141,7 +141,8 @@ public final class EntityIconRenderer {
      */
     private static float resolveYaw(Entity entity) {
         try {
-            Object renderer = RenderManager.instance.getEntityRenderObject(entity);
+            Object renderer = net.minecraft.client.Minecraft.getMinecraft()
+                    .getRenderManager().getEntityRenderObject(entity);
             if (renderer instanceof RendererLivingEntity) {
                 return 30.0F;
             }
@@ -182,7 +183,8 @@ public final class EntityIconRenderer {
             GL11.glTranslatef(tx, ty, 0.0F);
             GL11.glScalef(scale, -scale, scale);
             RenderHelper.enableStandardItemLighting();
-            Render renderer = RenderManager.instance.getEntityRenderObject(entity);
+            Render renderer = net.minecraft.client.Minecraft.getMinecraft()
+                    .getRenderManager().getEntityRenderObject(entity);
             if (renderer != null) {
                 renderer.doRender(entity, 0.0D, 0.0D, 0.0D, yaw, 1.0F);
             }
