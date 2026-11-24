@@ -21,7 +21,7 @@ MIT License。
 
 1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，Forge 端无需额外前置。
 2. 进入一个世界。
-3. 输入 `/meowarchive` 或按界面打开导出器。
+3. 输入 `/meowarchive` 或手持喵呜机右键打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
 5. 点「开始导出」。
 
@@ -73,9 +73,9 @@ meowarchive-export/
 ## 项目结构
 
 ```text
-common/   与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
-fabric/   Fabric 入口、命令、平台服务实现
-forge/    Forge 入口、命令、平台服务实现
+common/       与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/       Fabric 入口、命令、平台服务实现
+forge/        Forge 入口、命令、平台服务实现
 ```
 
 ## 已知限制
