@@ -14,6 +14,9 @@
     "license": "${license}",
     "icon": "assets/meowarchive/icon.png",
     "environment": "client",
+    "mixins": [
+        "meowarchive.mixins.json"
+    ],
     "entrypoints": {
         "main": [
             "io.github.zgxhzhr.meowarchive.exporter.MeowArchiveExporter"

@@ -2,7 +2,6 @@ package io.github.zgxhzhr.meowarchive.exporter.platform;
 
 import io.github.zgxhzhr.meowarchive.exporter.platform.services.IPlatformHelper;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.forgespi.language.IModInfo;
 
@@ -33,10 +32,5 @@ public class ForgePlatformHelper implements IPlatformHelper {
         return ModList.get().getModContainerById(modId)
                 .map(container -> container.getModInfo().getDisplayName())
                 .orElse(modId);
-    }
-
-    @Override
-    public boolean isDevelopmentEnvironment() {
-        return !FMLLoader.isProduction();
     }
 }

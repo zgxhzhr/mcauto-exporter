@@ -1,10 +1,7 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -19,6 +16,13 @@ import java.lang.reflect.Method;
  * 再在纯 Java 侧裁出实际内容、缩放居中成目标尺寸。
  */
 public final class EntityIconRenderer {
+    /**
+     * 1.14.4 的实体渲染是固定管线，不接受打包亮度参数，渲染结果相当于「全亮」；
+     * 1.15+ 用 0xF000F0 的天空光渲染，最终亮度约为全亮的 0.55 倍。
+     * 这里统一压暗到同一水平，保持各版本图标观感一致。
+     */
+    private static final float LIGHTMAP_DIM = 0.55F;
+
     private EntityIconRenderer() {
     }
 
@@ -37,7 +41,9 @@ public final class EntityIconRenderer {
             return null;
         }
         try {
-            entity.setPos(0.0, 0.0, 0.0);
+            // 放到高空：1.14.4 的实体渲染没有显式亮度参数，靠实体所在位置的天空光取光；
+            // y=0 处被方块包裹会渲染成全黑，高空处天空光满亮度，同时地面阴影也落到画布外。
+            entity.setPos(0.0, 250.0, 0.0);
             applyYaw(entity, resolveYaw(mc, entity));
             entity.setDeltaMovement(0.0, 0.0, 0.0);
             entity.setNoGravity(true);
@@ -57,6 +63,7 @@ public final class EntityIconRenderer {
             if (raw == null) {
                 return null;
             }
+            dim(raw, LIGHTMAP_DIM);
             return frame(raw, size);
         } catch (Throwable t) {
             return null;
@@ -244,51 +251,59 @@ public final class EntityIconRenderer {
         }
     }
 
+    /** 按比例压暗整张图（模拟 1.15+ 的白天光照贴图），保留 alpha 与相对明暗。 */
+    private static void dim(BufferedImage image, float factor) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, y);
+                int a = argb >>> 24;
+                if (a == 0) {
+                    continue;
+                }
+                int r = Math.round(((argb >> 16) & 0xFF) * factor);
+                int g = Math.round(((argb >> 8) & 0xFF) * factor);
+                int b = Math.round((argb & 0xFF) * factor);
+                image.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+    }
+
     private static BufferedImage draw(Entity entity, int size, float tx, float ty, float scale) {
         Minecraft mc = Minecraft.getInstance();
         OffscreenTarget target = null;
-        MultiBufferSource.BufferSource buffers = null;
         try {
             target = new OffscreenTarget(size);
             target.begin();
 
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.enableDepthTest();
-            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+            GlStateManager.enableBlend();
+            GlStateManager.blendFunc(org.lwjgl.opengl.GL11.GL_SRC_ALPHA,
+                    org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GlStateManager.enableDepthTest();
+            GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
             // 实体渲染按左下原点建模，这里用 y 向上的投影，读取像素时再做上下翻转。
             ItemIconRenderer.setProjection(size, false);
 
-            // 独立缓冲区：共享的 GUI 缓冲区里还有待提交的 HUD 顶点，
-            // 一起冲进来会在图标边角留下碎片。
-            buffers = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
-            PoseStack pose = new PoseStack();
-            pose.pushPose();
-            pose.translate(tx, ty, 0.0F);
+            // 1.14.4 的实体渲染没有 PoseStack / 顶点缓冲参数，直接用固定管线矩阵做变换。
+            GlStateManager.pushMatrix();
+            GlStateManager.translatef(tx, ty, 0.0F);
             // 投影已经是 y 向上，读取像素时又做了一次行翻转，这里不能再翻 y，否则图标上下颠倒。
-            pose.scale(scale, scale, scale);
-            mc.getEntityRenderDispatcher().render(entity, 0.0, 0.0, 0.0, entity.yRot, 0.0F, pose,
-                    buffers, 0xF000F0);
-            buffers.endBatch();
-            pose.popPose();
+            GlStateManager.scalef(scale, scale, scale);
+            mc.getEntityRenderDispatcher().render(entity, 0.0, 0.0, 0.0, entity.yRot, 0.0F, false);
+            GlStateManager.popMatrix();
 
             return target.read();
         } catch (Throwable t) {
             return null;
         } finally {
-            if (buffers != null) {
-                try {
-                    buffers.endBatch();
-                } catch (Throwable ignored) {
-                }
-            }
             if (target != null) {
                 target.close();
             }
             Minecraft main = Minecraft.getInstance();
             main.getMainRenderTarget().bindWrite(true);
             ItemIconRenderer.restoreProjection(main);
-            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+            GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
         }
     }
 }

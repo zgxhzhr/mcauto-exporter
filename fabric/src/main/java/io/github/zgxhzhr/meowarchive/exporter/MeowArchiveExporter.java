@@ -7,7 +7,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.itemgroup.FabricItemGroupBuilder;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -29,6 +28,7 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
             ExportService.get().tick();
             AutoExport.tick();
         });
-        HudRenderCallback.EVENT.register((pose, tickDelta) -> ExportService.get().onHudRender(pose));        ExporterLog.LOG.info("Meow Archive Exporter ready");
+        // HUD 阶段渲染由 GuiMixin 触发（1.14.4 的 Fabric API 没有 HudRenderCallback）
+        ExporterLog.LOG.info("Meow Archive Exporter ready");
     }
 }

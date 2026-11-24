@@ -6,6 +6,15 @@ plugins {
 version = project.version
 group = project.group
 
+// ForgeGradle 在 1.14.4 上默认把编译工具链降到 Java 8，而 Java 8 的 javac 不认识
+// Gradle 的 options.release；改用 JDK 17 工具链 + --release 8，既保留 Java 8 字节码，
+// 也保证链接的是 Java 8 的 API（否则 ByteBuffer 等协变返回类型会在 Java 8 上 NoSuchMethodError）。
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
 // ForgeGradle 6 在 1.16.5 只提供 MCP 类名（成员名与 mojmap 一致）。
 // common/fabric 使用官方映射编译，这里在构建时把 common 源码机械替换成 MCP 类名，
 // 保证同一份源码同时服务两侧，避免复制维护。

@@ -114,30 +114,17 @@ public final class AutoExport {
         }
         worldRequested = true;
         try {
-            if (mc.getLevelSource().levelExists(world)) {
-                ExporterLog.LOG.info("自动载入世界：{}", world);
-                mc.loadLevel(world);
-            } else {
-                ExporterLog.LOG.info("自动创建世界：{}", world);
-                net.minecraft.core.RegistryAccess.RegistryHolder access =
-                        net.minecraft.core.RegistryAccess.builtin();
-                net.minecraft.world.level.LevelSettings settings =
-                        new net.minecraft.world.level.LevelSettings(
-                                world,
-                                net.minecraft.world.level.GameType.CREATIVE,
-                                false,
-                                net.minecraft.world.Difficulty.PEACEFUL,
-                                true,
-                                new net.minecraft.world.level.GameRules(),
-                                new net.minecraft.world.level.DataPackConfig(
-                                        java.util.Collections.singletonList("vanilla"),
-                                        java.util.Collections.emptyList()));
-                mc.createLevel(world, settings, access,
-                        net.minecraft.world.level.levelgen.WorldGenSettings.makeDefault(
-                                access.registryOrThrow(net.minecraft.core.Registry.DIMENSION_TYPE_REGISTRY),
-                                access.registryOrThrow(net.minecraft.core.Registry.BIOME_REGISTRY),
-                                access.registryOrThrow(net.minecraft.core.Registry.NOISE_GENERATOR_SETTINGS_REGISTRY)));
-            }
+            // 1.15.2 的 selectLevel 同时承担「载入已有存档」和「按设置新建存档」：
+            // 存档已存在时会读取存档里的设置，不存在时才用这里传的 LevelSettings。
+            net.minecraft.world.level.LevelSettings settings =
+                    new net.minecraft.world.level.LevelSettings(
+                            0L,
+                            net.minecraft.world.level.GameType.CREATIVE,
+                            false,
+                            false,
+                            net.minecraft.world.level.LevelType.NORMAL);
+            ExporterLog.LOG.info("自动进入世界：{}", world);
+            mc.selectLevel(world, world, settings);
         } catch (Throwable t) {
             ExporterLog.LOG.error("自动进入世界失败: {}", t.toString());
         }

@@ -11,7 +11,6 @@ import io.github.zgxhzhr.meowarchive.exporter.render.EntityIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import io.github.zgxhzhr.meowarchive.exporter.render.ItemIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 
 import java.awt.image.BufferedImage;
@@ -113,7 +112,7 @@ public final class ExportService {
     public void tick() {
     }
 
-    public void onHudRender(PoseStack pose) {
+    public void onHudRender() {
         if (!running || request == null || targetDone()) {
             return;
         }

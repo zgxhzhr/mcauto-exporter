@@ -31,7 +31,7 @@ public final class MeowArchiveExporterForge {
     };
 
     private static final DeferredRegister<Item> ITEMS =
-            DeferredRegister.create(ForgeRegistries.ITEMS, ModItems.MOD_ID);
+            new DeferredRegister<>(ForgeRegistries.ITEMS, ModItems.MOD_ID);
 
     public MeowArchiveExporterForge() {
         IEventBus bus = FMLJavaModLoadingContext.get().getModEventBus();
