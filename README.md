@@ -21,7 +21,7 @@ MIT License。
 
 1. 把 jar 放进 `mods/`。Fabric 端需要 Fabric API，NeoForge 端无需额外前置。
 2. 进入一个世界。
-3. 输入 `/meowarchive` 或按界面打开导出器。
+3. 输入 `/meowarchive` 或手持喵呜机右键打开导出器。
 4. 左侧点选命名空间；右侧选择模式、类型、尺寸。
 5. 点「开始导出」。
 
@@ -70,21 +70,20 @@ meowarchive-export/
 ./gradlew :neoforge:runClient
 ```
 
+Forge 尚未移植，需要时从模板恢复对应模块。
+
 ## 项目结构
 
 ```text
-common/     与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
-fabric/     Fabric 入口、命令、平台服务实现
-neoforge/   NeoForge 入口、命令、平台服务实现
-docs/       LMS 字段说明与架构设计
+common/       与加载器无关的导出逻辑（扫描、渲染、LMS 写出、界面）
+fabric/       Fabric 入口、命令、平台服务实现
+neoforge/     NeoForge 入口、命令、平台服务实现
+docs/         LMS 字段说明与架构设计
 ```
-
-Forge 尚未移植，需要时从模板恢复对应模块。
-
 
 ## 已知限制
 
-- 支持 1.21.1 的 Fabric 与 NeoForge 客户端，Forge 未移植。
+- 支持 1.21.1 的 Fabric 与 NeoForge 客户端。
 - 实体渲染器如果依赖乘客、坐骑、特殊 AI 状态，可能渲染不出来，会在数据里标记。
 - 物品图标取默认 ItemStack，不导出 NBT / 组件变体。
 - 配方、附魔暂不导出。
