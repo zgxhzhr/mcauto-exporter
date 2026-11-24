@@ -36,6 +36,17 @@ pluginManagement {
                 includeGroupAndSubgroups('org.spongepowered')
             }
         }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'NeoForged'
+                    url = uri('https://maven.neoforged.net/releases')
+                }
+            }
+            filter {
+                includeGroupAndSubgroups('net.neoforged')
+            }
+        }
     }
 }
 
@@ -46,3 +57,4 @@ plugins {
 rootProject.name = 'meowarchive'
 include('fabric')
 include('forge')
+include('neoforge')
