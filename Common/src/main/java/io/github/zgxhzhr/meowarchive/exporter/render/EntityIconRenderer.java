@@ -256,7 +256,7 @@ public final class EntityIconRenderer {
             RenderSystem.enableDepthTest();
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0F, size, 0.0F, size, 1000.0F, 3000.0F));
+                    new Matrix4f().setOrtho(0.0F, size, size, 0.0F, 1000.0F, 3000.0F));
 
             // 独立缓冲区：共享的 GUI 缓冲区里还有待提交的 HUD 顶点，
             // 一起冲进来会在图标边角留下碎片。
