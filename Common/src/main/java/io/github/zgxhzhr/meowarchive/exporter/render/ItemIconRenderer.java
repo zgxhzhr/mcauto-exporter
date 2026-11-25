@@ -34,7 +34,7 @@ public final class ItemIconRenderer {
             RenderSystem.defaultBlendFunc();
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0F, size, 0.0F, size, 1000.0F, 3000.0F));
+                    new Matrix4f().setOrtho(0.0F, size, size, 0.0F, 1000.0F, 3000.0F));
 
             // 1.19.2 的 renderGuiItem 会自己平移 / 缩放并提交批次，
             // 这里在模型视图栈上先放大到目标尺寸，物品中心落在画布中央。
