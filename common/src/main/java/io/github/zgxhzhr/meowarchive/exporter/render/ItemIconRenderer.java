@@ -1,5 +1,6 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
@@ -13,11 +14,11 @@ import java.awt.image.BufferedImage;
  */
 public final class ItemIconRenderer {
     /**
-     * 1.15/1.16 的固定管线方块模型在离屏渲染时拿不到 GUI 物品光照，
-     * 成品整体只有贴图亮度的约 0.43 倍（平面物品不受影响）。
-     * 这里按实测比例补回亮度，使方块图标与原版观感及其它版本归档一致。
+     * 原版 renderGuiItem 只给非方块模型设置平面打光，方块模型沿用上一帧的光照状态，
+     * 离屏渲染时成品只有贴图亮度的约 0.43 倍（平面物品不受影响）。
+     * 这里统一改成平面打光，再按其它版本的观感给 3D 模型补 1.3 倍亮度。
      */
-    private static final float BLOCK_GAIN = 1.8F;
+    private static final float GUI3D_GAIN = 1.3F;
 
     private ItemIconRenderer() {
     }
@@ -42,12 +43,13 @@ public final class ItemIconRenderer {
             // 与这里的 y 向下投影一致；读取像素时再做一次上下翻转即可。
             RenderSystem.pushMatrix();
             RenderSystem.scalef(size / 16.0F, size / 16.0F, 1.0F);
+            Lighting.setupForFlatItems();
             mc.getItemRenderer().renderGuiItem(stack, 0, 0);
             RenderSystem.popMatrix();
 
             BufferedImage image = target.read();
             if (image != null && isGui3d(mc, stack)) {
-                brighten(image, BLOCK_GAIN);
+                brighten(image, GUI3D_GAIN);
             }
             return image;
         } catch (Throwable t) {

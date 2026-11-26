@@ -8,6 +8,7 @@ import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.effect.MobEffect;
@@ -21,15 +22,27 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class RegistryScanner {
     private static final Gson GSON = new Gson();
+    private static final String[] LANGUAGE_CLASS_NAMES = {
+            "net.minecraft.locale.Language",          // 官方映射
+            "net.minecraft.util.text.LanguageMap"     // 1.15.2 MCP
+    };
+
+    private static boolean languageApiChecked;
+    private static Method languageForceData;
+    private static Method languageGetInstance;
+    private static Field languageStorage;
     private static Map<Item, String> creativeTabs;
 
     private RegistryScanner() {
@@ -39,6 +52,7 @@ public final class RegistryScanner {
         Minecraft mc = Minecraft.getInstance();
         LanguagePair lang = loadLanguages();
         List<Target> out = new ArrayList<>();
+        List<NameJob> nameJobs = new ArrayList<>();
         if (request.kinds.contains(Target.Kind.ITEM)) {
             for (Item item : Registry.ITEM) {
                 ResourceLocation id = Registry.ITEM.getKey(item);
@@ -47,7 +61,7 @@ public final class RegistryScanner {
                 }
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
-                fillNames(t, lang, item.getDescriptionId());
+                nameJobs.add(new NameJob(t, item.getDescriptionId(), stack::getHoverName));
                 t.creativeTab = creativeTab(item, mc, lang);
                 t.tags = itemTags(item);
                 out.add(t);
@@ -60,7 +74,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getDescriptionId());
+                nameJobs.add(new NameJob(t, effect.getDescriptionId(), effect::getDisplayName));
                 t.effectCategory = effect.getCategory().name();
                 t.color = effect.getColor();
                 t.instant = effect.isInstantenous();
@@ -77,11 +91,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.entity(id, type);
-                fillNames(t, lang, type.getDescriptionId());
-                if (t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty()) {
-                    // 技术性实体（中英文名都缺失），不参与导出
-                    continue;
-                }
+                nameJobs.add(new NameJob(t, type.getDescriptionId(), type::getDescription));
                 t.entityCategory = type.getCategory().name();
                 t.width = type.getDimensions().width;
                 t.height = type.getDimensions().height;
@@ -104,6 +114,10 @@ public final class RegistryScanner {
                 out.add(t);
             }
         }
+        fillNames(nameJobs, lang);
+        // 技术性实体（中英文名都缺失）不参与导出，需等名字解析完再剔除
+        out.removeIf(t -> t.kind == Target.Kind.ENTITY
+                && t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty());
         return out;
     }
 
@@ -122,9 +136,117 @@ public final class RegistryScanner {
         }
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String descId) {
-        t.nameZh = resolve(lang.zh, descId);
-        t.nameEn = resolve(lang.en, descId);
+    /**
+     * 用物品/实体的显示名（Component）取值，而不是直接查语言表。
+     *
+     * <p>模组常用带参数的翻译（格雷科技的材料物品就是 {@code %s 桶} 这类），
+     * 直接读语言表只能拿到带 {@code %s} 的模板；Component 会带上参数一起解析。
+     * 两种语言靠反射替换语言单例的翻译表实现，取完立即归还。
+     */
+    private static void fillNames(List<NameJob> jobs, LanguagePair lang) {
+        if (jobs.isEmpty()) {
+            return;
+        }
+        Map<String, String> backup = snapshotLanguage();
+        if (backup == null) {
+            // 拿不到原语言表就不敢替换：直接用当前语言下的显示名兜底，避免导出模板
+            for (NameJob job : jobs) {
+                String value = clean(rawDisplayName(job));
+                job.target.nameZh = value;
+                job.target.nameEn = value;
+            }
+            return;
+        }
+        try {
+            if (lang.zh != null && !lang.zh.isEmpty()) {
+                applyLanguage(lang.zh);
+                for (NameJob job : jobs) {
+                    job.target.nameZh = resolveName(job, lang.zh);
+                }
+            }
+            if (lang.en != null && !lang.en.isEmpty()) {
+                applyLanguage(lang.en);
+                for (NameJob job : jobs) {
+                    job.target.nameEn = resolveName(job, lang.en);
+                }
+            }
+        } finally {
+            applyLanguage(backup);
+        }
+    }
+
+    private static String resolveName(NameJob job, Map<String, String> language) {
+        String value = clean(rawDisplayName(job));
+        if (unresolved(value, job.key) || hasPlaceholder(value)) {
+            return resolve(language, job.key);
+        }
+        return value;
+    }
+
+    private static String rawDisplayName(NameJob job) {
+        try {
+            Component name = job.displayName.get();
+            return name == null ? "" : name.getString();
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
+    /**
+     * 官方映射与 1.15.2 MCP 的语言单例类名不同（Language / LanguageMap），
+     * 编译期不能直接引用，运行时按序探测；成员名两边一致。
+     */
+    private static synchronized boolean checkLanguageApi() {
+        if (languageApiChecked) {
+            return languageForceData != null;
+        }
+        languageApiChecked = true;
+        for (String name : LANGUAGE_CLASS_NAMES) {
+            try {
+                Class<?> clazz = Class.forName(name);
+                Method forceData = clazz.getMethod("forceData", Map.class);
+                Method getInstance = clazz.getMethod("getInstance");
+                Field storage = clazz.getDeclaredField("storage");
+                storage.setAccessible(true);
+                languageForceData = forceData;
+                languageGetInstance = getInstance;
+                languageStorage = storage;
+                return true;
+            } catch (Throwable ignored) {
+                // 该映射名不适用，继续试下一个
+            }
+        }
+        ExporterLog.LOG.warn("找不到可用的语言单例，名称将退回语言表直查");
+        return false;
+    }
+
+    private static void applyLanguage(Map<String, String> language) {
+        if (language == null || !checkLanguageApi()) {
+            return;
+        }
+        try {
+            languageForceData.invoke(null, language);
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("语言表切换失败: {}", e.toString());
+        }
+    }
+
+    /** 反射读出当前语言表的副本，替换前后用它还原。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> snapshotLanguage() {
+        if (!checkLanguageApi()) {
+            return null;
+        }
+        try {
+            Object instance = languageGetInstance.invoke(null);
+            Object value = languageStorage.get(instance);
+            if (value instanceof Map) {
+                return new HashMap<>((Map<String, String>) value);
+            }
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("语言表快照失败: {}", e.toString());
+        }
+        return null;
     }
 
     private static String resolve(Map<String, String> language, String key) {
@@ -135,11 +257,33 @@ public final class RegistryScanner {
         if (value == null || value.equals(key)) {
             String alternate = language.get(key + ".name");
             if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
+                alternate = clean(alternate);
+                return hasPlaceholder(alternate) ? "" : alternate;
             }
             return "";
         }
-        return value;
+        value = clean(value);
+        return hasPlaceholder(value) ? "" : value;
+    }
+
+    /** 模组名里常带 {@code §r} 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
+    }
+
+    /** 翻译缺失时 Component 会原样返回键名，这类值视为无效。 */
+    private static boolean unresolved(String value, String key) {
+        return value == null || value.trim().isEmpty() || value.equals(key)
+                || value.startsWith("item.") || value.startsWith("block.")
+                || value.startsWith("entity.") || value.startsWith("effect.");
+    }
+
+    /** 原始翻译里可能残留 {@code %s} 这类占位符，导出后会露出模板，视为无效。 */
+    private static boolean hasPlaceholder(String value) {
+        return value != null && value.matches("(?s).*%\\d*\\$?[sSdDfFxX].*");
     }
 
     /**
@@ -258,5 +402,18 @@ public final class RegistryScanner {
     private static final class LanguagePair {
         Map<String, String> zh;
         Map<String, String> en;
+    }
+
+    /** 待解析名字的条目：注册名的翻译键 + 该条目的显示名组件。 */
+    private static final class NameJob {
+        final Target target;
+        final String key;
+        final Supplier<Component> displayName;
+
+        NameJob(Target target, String key, Supplier<Component> displayName) {
+            this.target = target;
+            this.key = key;
+            this.displayName = displayName;
+        }
     }
 }
