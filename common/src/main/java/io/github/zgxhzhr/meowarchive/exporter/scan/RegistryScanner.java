@@ -8,6 +8,7 @@ import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.effect.MobEffect;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class RegistryScanner {
@@ -48,7 +50,7 @@ public final class RegistryScanner {
                 }
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
-                fillNames(t, lang, item.getDescriptionId());
+                fillNames(t, lang, item.getDescriptionId(), stack::getHoverName);
                 t.creativeTab = creativeTab(item, mc, lang);
                 t.tags = itemTags(item);
                 out.add(t);
@@ -61,7 +63,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getDescriptionId());
+                fillNames(t, lang, effect.getDescriptionId(), effect::getDisplayName);
                 t.effectCategory = effect.getCategory().name();
                 t.color = effect.getColor();
                 t.instant = effect.isInstantenous();
@@ -78,7 +80,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.entity(id, type);
-                fillNames(t, lang, type.getDescriptionId());
+                fillNames(t, lang, type.getDescriptionId(), type::getDescription);
                 if (t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty()) {
                     // 技术性实体（中英文名都缺失），不参与导出
                     continue;
@@ -123,19 +125,56 @@ public final class RegistryScanner {
         }
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String descId) {
-        t.nameZh = resolve(lang.zh, descId);
-        t.nameEn = resolve(lang.en, descId);
+    private static void fillNames(Target t, LanguagePair lang, String descId,
+                                  Supplier<Component> displayName) {
+        t.nameZh = resolveName(lang.zh, descId, displayName);
+        t.nameEn = resolveName(lang.en, descId, displayName);
+    }
+
+    /**
+     * 语言表命中且不是带参数的模板时直接使用。模组常用 "%s 锭" 这类翻译，
+     * 直接读语言表只能拿到带 %s / %1$s 的模板，此时回退到显示名
+     * （当前语言，参数已由 ITextComponent 代入），保证导出的不是模板。
+     */
+    private static String resolveName(Map<String, String> language, String key,
+                                      Supplier<Component> displayName) {
+        String value = resolve(language, key);
+        if (usable(value)) {
+            return value;
+        }
+        try {
+            String shown = clean(displayName.get().getString());
+            return usable(shown) ? shown : "";
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
+    private static boolean usable(String value) {
+        return value != null && !value.isEmpty() && !hasFormat(value);
+    }
+
+    /** %s / %1$s / %d 这类翻译模板不能直接写进 JSON。 */
+    private static boolean hasFormat(String value) {
+        return value.matches(".*%\\d*\\$?[sdf].*");
+    }
+
+    /** 模组名里常带 §r 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
     }
 
     private static String resolve(Map<String, String> language, String key) {
         if (language == null) {
             return "";
         }
-        String value = language.get(key);
-        if (value == null || value.equals(key)) {
-            String alternate = language.get(key + ".name");
-            if (alternate != null && !alternate.equals(key + ".name")) {
+        String value = clean(language.get(key));
+        if (value.isEmpty() || value.equals(key)) {
+            String alternate = clean(language.get(key + ".name"));
+            if (!alternate.isEmpty() && !alternate.equals(key + ".name")) {
                 return alternate;
             }
             return "";

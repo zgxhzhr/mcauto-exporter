@@ -1,6 +1,7 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.platform.Lighting;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
@@ -13,12 +14,10 @@ import java.awt.image.BufferedImage;
  */
 public final class ItemIconRenderer {
     /**
-     * 1.14/1.15/1.16 的固定管线方块模型在离屏渲染时拿不到 GUI 物品光照，
-     * 成品整体只有贴图亮度的约 0.43 倍（平面物品不受影响）。
-     * 这里按实测比例补回亮度，使方块图标与原版观感及其它版本归档一致。
-     * 1.14.4 的基准再低约 8%（固定管线没有 GUI 方向光），系数相应从 1.8 提到 1.95。
+     * 3D 方块改用统一平面打光后不再偏暗，仅再补一点亮度，
+     * 使方块图标与原版观感及其它版本归档一致；平面物品不受影响。
      */
-    private static final float BLOCK_GAIN = 1.95F;
+    private static final float BLOCK_GAIN = 1.3F;
 
     private ItemIconRenderer() {
     }
@@ -29,6 +28,7 @@ public final class ItemIconRenderer {
             return null;
         }
         OffscreenTarget target = null;
+        boolean lightingPushed = false;
         try {
             target = new OffscreenTarget(size);
             target.begin();
@@ -39,12 +39,23 @@ public final class ItemIconRenderer {
             // 1.14.4 还是固定管线：投影矩阵用 ortho 直接设置（左上原点，y 向下）。
             setProjection(size, true);
 
+            // HUD 阶段残留的是 GUI 标准打光（3D 方块在 GUI 里只有 0.4~0.5 的亮度）；
+            // 这里换成平面打光（标准物品光照，不带 GUI 旋转），
+            // 效果对应其它版本的 Lighting.setupForFlatItems()。
+            GlStateManager.pushLightingAttributes();
+            lightingPushed = true;
+            Lighting.turnOn();
+
             // 16×16 的 GUI 物品放大到整张画布。物品栏管线的坐标原点是左上角，
             // 与这里的 y 向下投影一致；读取像素时再做一次上下翻转即可。
             GlStateManager.pushMatrix();
             GlStateManager.scalef(size / 16.0F, size / 16.0F, 1.0F);
             mc.getItemRenderer().renderGuiItem(stack, 0, 0);
             GlStateManager.popMatrix();
+
+            Lighting.turnOff();
+            GlStateManager.popAttributes();
+            lightingPushed = false;
 
             BufferedImage image = target.read();
             if (image != null && isGui3d(mc, stack)) {
@@ -55,6 +66,10 @@ public final class ItemIconRenderer {
             ExporterLog.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
         } finally {
+            if (lightingPushed) {
+                Lighting.turnOff();
+                GlStateManager.popAttributes();
+            }
             if (target != null) {
                 target.close();
             }
