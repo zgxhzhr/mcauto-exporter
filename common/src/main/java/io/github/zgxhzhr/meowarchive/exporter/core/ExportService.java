@@ -8,6 +8,7 @@ import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
 import io.github.zgxhzhr.meowarchive.exporter.render.EffectIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.EntityIconRenderer;
+import io.github.zgxhzhr.meowarchive.exporter.render.FluidIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import io.github.zgxhzhr.meowarchive.exporter.render.ItemIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
@@ -164,7 +165,7 @@ public final class ExportService {
             capturing = false;
             if (image != null && !ImageUtil.blank(image)) {
                 target.icons.put(size, image);
-                writePng(target, size, image);
+                writePng(target, size, image, "");
             } else {
                 skippedSizes.add(target.id + "#" + size);
             }
@@ -173,7 +174,32 @@ public final class ExportService {
             case ITEM -> ItemIconRenderer.renderAsync(target.stack, size, done);
             case ENTITY -> EntityIconRenderer.renderAsync(target.entityType, size, 30.0F, done);
             case EFFECT -> done.accept(EffectIconRenderer.render(target.id, size));
+            case FLUID -> renderFluid(target, size, gen, done);
         }
+    }
+
+    /**
+     * 流体一次产出两套图标：平面图（静止贴图/桶）存进 stillIcons 并单独落盘，
+     * 主图标优先等距立方体，立方体失败时退回平面图。
+     */
+    private void renderFluid(Target target, int size, long gen, Consumer<BufferedImage> done) {
+        FluidIconRenderer.renderFlat(target, size, flat -> {
+            if (gen != captureGen) {
+                return;
+            }
+            if (flat != null && !ImageUtil.blank(flat)) {
+                target.stillIcons.put(size, flat);
+                writePng(target, size, flat, "_still");
+            }
+            BufferedImage cube = FluidIconRenderer.renderCube(target, size);
+            if (cube != null && !ImageUtil.blank(cube)) {
+                target.fluidIconSource = "cube";
+                done.accept(cube);
+            } else {
+                target.fluidIconSource = flat == null ? "" : target.fluidStillIconSource;
+                done.accept(flat);
+            }
+        });
     }
 
     /** 一个条目的所有尺寸都处理完：做校验、必要时重试，然后进入下一个条目。 */
@@ -185,7 +211,7 @@ public final class ExportService {
                 capturing = false;
                 if (retry != null && !ImageUtil.blank(retry)) {
                     target.icons.put(128, retry);
-                    writePng(target, 128, retry);
+                    writePng(target, 128, retry, "");
                 }
                 finalizeTarget(target);
             });
@@ -220,6 +246,11 @@ public final class ExportService {
                 }
             }
         }
+        if (target.icons.isEmpty() && target.kind == Target.Kind.FLUID) {
+            // 流体没有静止贴图也没有桶时，属于「无可见图标」，不算失败
+            target.noVisual = true;
+            noVisualTargets.put(target.id.toString(), "无桶物品且无静止贴图");
+        }
         if (target.icons.isEmpty() && target.kind == Target.Kind.ITEM) {
             failures.put(target.id.toString(), "渲染为空");
             log.add("渲染为空：" + target.id);
@@ -243,11 +274,11 @@ public final class ExportService {
         return running && index >= targets.size();
     }
 
-    private boolean writePng(Target target, int size, BufferedImage image) {
+    private boolean writePng(Target target, int size, BufferedImage image, String suffix) {
         try {
             Path dir = output.resolve(target.namespace()).resolve("icons");
             Files.createDirectories(dir);
-            Path file = dir.resolve(target.path() + "_" + size + ".png");
+            Path file = dir.resolve(target.path() + suffix + "_" + size + ".png");
             Files.write(file, ImageUtil.png(image));
             return true;
         } catch (IOException e) {
