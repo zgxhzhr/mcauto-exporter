@@ -1,5 +1,6 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
@@ -18,12 +19,10 @@ import java.util.function.Consumer;
  */
 public final class ItemIconRenderer {
     /**
-     * 1.21.5 物品着色器的 GUI 光照只有两盏方向光 + 0.4 环境光，
-     * 3D 方块物品整体只有贴图亮度的一半左右（实测 stone/iron_block/sand 均为 0.5~0.6 倍）。
-     * 与 1.15.2 同样按实测倍率补回亮度，使方块图标与其它版本归档观感一致。
+     * 3D 方块改用统一平面打光后不再偏暗，仅再补一点亮度，使方块图标与其它版本归档观感一致。
      * 平面物品（diamond/apple 等）已经是 1.0 倍，不受影响。
      */
-    private static final float BLOCK_GAIN = 1.5F;
+    private static final float BLOCK_GAIN = 1.3F;
 
     private ItemIconRenderer() {
     }
@@ -41,6 +40,9 @@ public final class ItemIconRenderer {
                 pose.pushPose();
                 // 原版按 16×16 槽位绘制，外面整体放大到目标尺寸
                 pose.scale(size / 16.0F, size / 16.0F, 1.0F);
+                // GuiGraphics.renderItem 只在平面物品时切光照，3D 方块会沿用当前状态：
+                // 先切平面打光，避免 3D 模型用 ITEMS_3D 的 0.4 环境光而整体偏暗。
+                Lighting.setupForFlatItems();
                 graphics.renderItem(stack, 0, 0);
                 pose.popPose();
             }, image -> {
