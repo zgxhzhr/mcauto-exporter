@@ -1,11 +1,14 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
 import com.mojang.blaze3d.ProjectionType;
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix4f;
 
@@ -43,8 +46,21 @@ public final class ItemIconRenderer {
             // 1.21.2 的 GUI modelview 已由 GameRenderer 平移 -11000，这里不能再加
             pose.translate(size / 2.0F, size / 2.0F, 0.0F);
             pose.scale(size / 16.0F, size / 16.0F, 1.0F);
-            graphics.renderItem(stack, -8, -8);
+            // 不走 GuiGraphics.renderItem：它按模型的 gui_light 决定打光，
+            // 3D 方块在 GUI 里只有 0.4~0.5 的亮度，导出到透明背景上明显偏暗。
+            // 统一改用平面打光（三面亮度接近），并给 3D 模型补一点亮度。
+            Lighting.setupForFlatItems();
+            pose.translate(0.0F, 0.0F, 150.0F);
+            pose.scale(16.0F, -16.0F, 16.0F);
+            var model = mc.getItemRenderer().getModel(stack, mc.level, mc.player, 0);
+            if (model.isGui3d()) {
+                RenderSystem.setShaderColor(1.3F, 1.3F, 1.3F, 1.0F);
+            }
+            mc.getItemRenderer().render(stack, ItemDisplayContext.GUI, false, pose,
+                    mc.renderBuffers().bufferSource(), 15728880,
+                    OverlayTexture.NO_OVERLAY, model);
             graphics.flush();
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             pose.popPose();
 
             return target.read();
