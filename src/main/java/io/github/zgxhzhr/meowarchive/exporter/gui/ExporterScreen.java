@@ -6,20 +6,23 @@ import io.github.zgxhzhr.meowarchive.exporter.core.ExportMode;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportService;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
+import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.Util;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.lwjgl.input.Mouse;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -73,16 +76,27 @@ public final class ExporterScreen extends GuiScreen {
     public void initGui() {
         this.buttonList.clear();
         namespaces.clear();
-        Set<String> contentNamespaces = contentNamespaces();
-        List<String> modIds = new ArrayList<>(ClientPlatform.loadedModIds());
-        java.util.Collections.sort(modIds);
-        for (String id : modIds) {
-            if (id.equals("minecraft") || id.equals("java") || id.equals("forge") || id.equals("fml")) {
+        Set<String> contentNamespaces = RegistryScanner.contentNamespaces();
+        Map<String, String> modIdByLower = new HashMap<>();
+        for (String id : ClientPlatform.loadedModIds()) {
+            if (isHiddenNamespace(id)) {
                 continue;
             }
-            if (contentNamespaces.contains(id)) {
-                namespaces.add(new NsEntry(id, ClientPlatform.modName(id)));
+            modIdByLower.put(id.toLowerCase(Locale.ROOT), id);
+        }
+        List<String> domains = new ArrayList<>(contentNamespaces);
+        java.util.Collections.sort(domains);
+        for (String domain : domains) {
+            if (isHiddenNamespace(domain)) {
+                continue;
             }
+            // 注册域被 ResourceLocation 强制小写，modId 却可能是 "Jaffas" 这类带大写的名字；
+            // 按小写匹配回原始 modId 取显示名，匹配不到就直接用域名，避免整块内容被漏掉。
+            String modId = modIdByLower.get(domain.toLowerCase(Locale.ROOT));
+            namespaces.add(new NsEntry(domain, modId == null ? domain : ClientPlatform.modName(modId)));
+        }
+        if (contentNamespaces.contains("minecraft")) {
+            namespaces.add(0, new NsEntry("minecraft", "Minecraft"));
         }
         if (selected.isEmpty() && !namespaces.isEmpty()) {
             selected.add(namespaces.get(0).id);
@@ -224,18 +238,9 @@ public final class ExporterScreen extends GuiScreen {
         return "模式：" + mode.label;
     }
 
-    private Set<String> contentNamespaces() {
-        Set<String> out = new HashSet<>();
-        for (net.minecraft.util.ResourceLocation id : ForgeRegistries.ITEMS.getKeys()) {
-            out.add(id.getResourceDomain());
-        }
-        for (net.minecraft.util.ResourceLocation id : ForgeRegistries.POTIONS.getKeys()) {
-            out.add(id.getResourceDomain());
-        }
-        for (net.minecraft.util.ResourceLocation id : ForgeRegistries.ENTITIES.getKeys()) {
-            out.add(id.getResourceDomain());
-        }
-        return out;
+    private static boolean isHiddenNamespace(String id) {
+        return "minecraft".equals(id) || "java".equals(id) || "forge".equals(id)
+                || "fml".equals(id) || "mcp".equals(id);
     }
 
     @Override

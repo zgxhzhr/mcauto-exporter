@@ -17,9 +17,11 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.Potion;
+import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.translation.I18n;
+import net.minecraft.util.text.translation.LanguageMap;
 import net.minecraftforge.fml.common.registry.EntityEntry;
 import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
@@ -27,13 +29,18 @@ import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 public final class RegistryScanner {
     private static Map<Item, String> creativeTabs;
@@ -41,6 +48,12 @@ public final class RegistryScanner {
     private static Map<Item, String> oreDict;
     /** 创造栏名的解析依赖扫描时构建的语言表，避免依赖客户端 I18n（部分环境读不到模组语言）。 */
     private static LanguagePair scanLang;
+    /** 语言格式化占位符：%s / %d / %f，以及 %1$s 这种带序号的写法。 */
+    private static final Pattern PARAMETER_PATTERN = Pattern.compile("%(\\d+\\$)?[\\d.]*[sdf]");
+    /** 运行中的 LanguageMap 单例与它的内部映射，用来临时替换带参数模板；反射失败时为 null。 */
+    private static Object liveLanguageOwner;
+    private static Map<String, String> liveLanguage;
+    private static boolean liveLanguageChecked;
 
     private RegistryScanner() {
     }
@@ -59,7 +72,7 @@ public final class RegistryScanner {
                 // 1.12 的元数据子类型（羊毛颜色等）按创造栏逐条展开，与 IRR 的粒度一致
                 for (ItemStack stack : variants(item)) {
                     Target t = Target.item(id, stack);
-                    fillNames(t, lang, item.getUnlocalizedName());
+                    fillNames(t, lang, item.getUnlocalizedName(), stack::getDisplayName);
                     t.creativeTab = creativeTab(item);
                     t.tags = oreDictNames(item);
                     out.add(t);
@@ -73,7 +86,8 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getName());
+                fillNames(t, lang, effect.getName(),
+                        () -> new PotionEffect(effect).getEffectName());
                 t.effectCategory = effect.isBeneficial() ? "BENEFICIAL"
                         : (effect.isBadEffect() ? "HARMFUL" : "NEUTRAL");
                 t.color = effect.getLiquidColor();
@@ -98,9 +112,11 @@ public final class RegistryScanner {
                     ExporterLog.LOG.debug("实体创建失败 {}: {}", id, e.toString());
                 }
                 if (entity != null) {
-                    String key = entityNameKey(entity);
+                    Entity named = entity;
+                    String key = entityNameKey(named);
                     if (key != null) {
-                        fillNames(t, lang, key);
+                        fillNames(t, lang, key,
+                                () -> named.getDisplayName().getUnformattedText());
                     }
                     try {
                         if (entity instanceof EntityLivingBase) {
@@ -143,9 +159,96 @@ public final class RegistryScanner {
         return null;
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String key) {
-        t.nameZh = resolve(lang.zh, key);
-        t.nameEn = resolve(lang.en, key);
+    private static void fillNames(Target t, LanguagePair lang, String key,
+                                  Supplier<String> display) {
+        t.nameZh = resolveName(lang.zh, lang.en, key, display);
+        t.nameEn = resolveName(lang.en, lang.zh, key, display);
+    }
+
+    /**
+     * 取物品/实体/效果的本地化名称。
+     *
+     * <p>模组常用带参数的翻译（格雷的「%s 桶」这类），直接查 .lang 只能拿到模板。
+     * 此时把运行中语言表里的这个键临时换成目标语言，再调一次显示名：
+     * 模组的格式化调用会把参数带出来，取完立即还原。目标语言仍解析不出来时，
+     * 用另一种语言的成品名兜底，保证不会把可见的 {@code %s} 写进 JSON。
+     */
+    private static String resolveName(Map<String, String> language, Map<String, String> other,
+                                      String key, Supplier<String> display) {
+        if (language == null || key == null) {
+            return "";
+        }
+        String value = resolve(language, key);
+        if (invalid(value, key)) {
+            value = formattedName(language, key, display);
+        }
+        if (invalid(value, key)) {
+            value = resolve(other, key);
+        }
+        if (invalid(value, key)) {
+            value = formattedName(other, key, display);
+        }
+        return invalid(value, key) ? "" : value;
+    }
+
+    /** 用目标语言的模板替换当前语言表里的条目，再取显示名，让模组把参数一并格式化。 */
+    private static String formattedName(Map<String, String> language, String key,
+                                        Supplier<String> display) {
+        if (display == null || language == null) {
+            return "";
+        }
+        Map<String, String> live = liveLanguage();
+        if (live == null) {
+            // 反射不可用：显示名带着当前语言解析好的参数，另一种语言只能回退到它
+            try {
+                return clean(display.get());
+            } catch (Throwable e) {
+                return "";
+            }
+        }
+        String template = resolve(language, key);
+        if (template.isEmpty()) {
+            return "";
+        }
+        synchronized (liveLanguageOwner) {
+            String saved = live.put(key, template);
+            String savedName = live.put(key + ".name", template);
+            try {
+                return clean(display.get());
+            } catch (Throwable e) {
+                return "";
+            } finally {
+                restore(live, key, saved);
+                restore(live, key + ".name", savedName);
+            }
+        }
+    }
+
+    private static void restore(Map<String, String> live, String key, String value) {
+        if (value == null) {
+            live.remove(key);
+        } else {
+            live.put(key, value);
+        }
+    }
+
+    /** LanguageMap 的单例与内部映射都是私有的，只能反射取；取不到就退化为显示名。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> liveLanguage() {
+        if (!liveLanguageChecked) {
+            liveLanguageChecked = true;
+            try {
+                Field instanceField = LanguageMap.class.getDeclaredField("instance");
+                instanceField.setAccessible(true);
+                liveLanguageOwner = instanceField.get(null);
+                Field listField = LanguageMap.class.getDeclaredField("languageList");
+                listField.setAccessible(true);
+                liveLanguage = (Map<String, String>) listField.get(liveLanguageOwner);
+            } catch (Throwable e) {
+                ExporterLog.LOG.warn("读取运行中语言表失败，带参数翻译退回显示名: {}", e.toString());
+            }
+        }
+        return liveLanguage;
     }
 
     private static String resolve(Map<String, String> language, String key) {
@@ -156,11 +259,32 @@ public final class RegistryScanner {
         if (value == null || value.equals(key)) {
             String alternate = language.get(key + ".name");
             if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
+                return clean(alternate);
             }
             return "";
         }
-        return value;
+        return clean(value);
+    }
+
+    /** 名称里的 §r 这类格式码写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
+    }
+
+    /** 翻译缺失时会原样返回键名；仍带 %s 说明参数没解析出来，同样视为无效。 */
+    private static boolean invalid(String value, String key) {
+        return value == null || value.isEmpty() || value.equals(key)
+                || hasParameter(value)
+                || value.startsWith("item.") || value.startsWith("block.")
+                || value.startsWith("entity.") || value.startsWith("effect.")
+                || value.startsWith("Format error");
+    }
+
+    private static boolean hasParameter(String value) {
+        return value != null && PARAMETER_PATTERN.matcher(value).find();
     }
 
     private static LanguagePair loadLanguages() {
@@ -375,6 +499,25 @@ public final class RegistryScanner {
             sb.append(parts[i]);
         }
         return sb.append(']').toString();
+    }
+
+    /** 界面上可选的命名空间集合：只要物品/效果/实体里出现过就算。 */
+    public static Set<String> contentNamespaces() {
+        Set<String> out = new HashSet<>();
+        try {
+            for (ResourceLocation id : ForgeRegistries.ITEMS.getKeys()) {
+                out.add(id.getResourceDomain());
+            }
+            for (ResourceLocation id : ForgeRegistries.POTIONS.getKeys()) {
+                out.add(id.getResourceDomain());
+            }
+            for (ResourceLocation id : ForgeRegistries.ENTITIES.getKeys()) {
+                out.add(id.getResourceDomain());
+            }
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("读取内容命名空间失败: {}", e.toString());
+        }
+        return out;
     }
 
     private static final class LanguagePair {
