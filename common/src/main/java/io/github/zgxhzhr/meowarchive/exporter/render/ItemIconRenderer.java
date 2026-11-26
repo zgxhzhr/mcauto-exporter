@@ -21,11 +21,9 @@ public final class ItemIconRenderer {
     private static final int FULL_BRIGHT = 0xF000F0;
 
     /**
-     * 3D 方块物品的 GUI 光照只有贴图亮度的一半左右（1.21.8 实测与 1.21.5 原始亮度一致：
-     * stone 63.8 / iron 112.8 / sand 99.8），与 1.15.2 同样按实测倍率补回亮度。
-     * 平面物品已经是 1.0 倍，不受影响。
+     * 3D 方块改用统一平面打光后不再偏暗，仅再补一点亮度，保证导出图观感一致。
      */
-    private static final float BLOCK_GAIN = 1.5F;
+    private static final float BLOCK_GAIN = 1.3F;
 
     private ItemIconRenderer() {
     }
@@ -44,7 +42,8 @@ public final class ItemIconRenderer {
                 return;
             }
             boolean gui3d = state.usesBlockLight();
-            mc.gameRenderer.getLighting().setupFor(gui3d ? Lighting.Entry.ITEMS_3D : Lighting.Entry.ITEMS_FLAT);
+            // 3D 方块的 ITEMS_3D 打光只有 0.4~0.5 亮度，导出到透明背景上明显偏暗；统一用平面打光
+            mc.gameRenderer.getLighting().setupFor(Lighting.Entry.ITEMS_FLAT);
             float center = size / 2.0F;
             IconCapture.renderAsync(size, size, 1.0F, true, false, center, center,
                     (pose, buffers) -> state.render(pose, buffers, FULL_BRIGHT, OverlayTexture.NO_OVERLAY),
