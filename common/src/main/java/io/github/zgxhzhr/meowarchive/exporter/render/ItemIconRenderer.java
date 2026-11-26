@@ -33,8 +33,8 @@ public final class ItemIconRenderer {
                 done.accept(null);
                 return;
             }
-            boolean flat = !state.usesBlockLight();
-            mc.gameRenderer.getLighting().setupFor(flat ? Lighting.Entry.ITEMS_FLAT : Lighting.Entry.ITEMS_3D);
+            // 3D 方块的 ITEMS_3D 打光只有 0.4~0.5 亮度，导出到透明背景上明显偏暗；统一用平面打光
+            mc.gameRenderer.getLighting().setupFor(Lighting.Entry.ITEMS_FLAT);
             float center = size / 2.0F;
             IconCapture.renderAsync(size, size, true, false, center, center,
                     (pose, collector) -> state.submit(pose, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0),
