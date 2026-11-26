@@ -50,6 +50,7 @@ public final class PreviewWriter {
         int blocks = 0;
         int entities = 0;
         int effects = 0;
+        int fluids = 0;
         int withIcon = 0;
         int suspects = 0;
         List<String> noVisual = new ArrayList<>();
@@ -69,6 +70,12 @@ public final class PreviewWriter {
                     }
                 }
                 case EFFECT -> effects++;
+                case FLUID -> {
+                    fluids++;
+                    if (t.noVisual) {
+                        noVisual.add(t.id.toString());
+                    }
+                }
             }
             if (t.icons.containsKey(128) || t.icons.containsKey(32)) {
                 withIcon++;
@@ -83,6 +90,7 @@ public final class PreviewWriter {
                 <tr><th>物品/方块</th><td>name、englishName、registerName、type、maxStacksSize、maxDurability、CreativeTabName、OredictList、smallIcon、largeIcon、kind</td></tr>
                 <tr><th>实体</th><td>name、Englishname、mod、registerName、Icon、IconSmall、iconSource、noVisual、suspect、renderer、kind</td></tr>
                 <tr><th>效果</th><td>name、Englishname、mod、registerName、category、effectCategory、color、instant、Icon、IconSmall、iconSource、iconMode、kind</td></tr>
+                <tr><th>流体</th><td>name、Englishname、mod、registerName、color、bucket、stillTexture、flowingTexture、Icon、IconSmall、iconSource、iconMode、IconStill、IconStillSmall、stillIconSource、kind</td></tr>
                 </tbody></table>""";
         StringBuilder noVisualLine = new StringBuilder();
         if (noVisual.isEmpty()) {
@@ -97,6 +105,7 @@ public final class PreviewWriter {
                 .replace("__BLOCKS__", String.valueOf(blocks))
                 .replace("__ENTITIES__", String.valueOf(entities))
                 .replace("__EFFECTS__", String.valueOf(effects))
+                .replace("__FLUIDS__", String.valueOf(fluids))
                 .replace("__WITHICON__", String.valueOf(withIcon))
                 .replace("__SUSPECTS__", String.valueOf(suspects))
                 .replace("__NOVISUAL__", esc(noVisualLine.toString()))
@@ -149,6 +158,10 @@ public final class PreviewWriter {
                     t.renderer.isEmpty() ? "" : " · 渲染器 " + t.renderer);
             case EFFECT -> String.format("Effect · %s · %s%s", t.id,
                     t.effectCategory, t.instant ? " · 瞬间" : "");
+            case FLUID -> String.format("Fluid · %s · %s%s", t.id,
+                    t.fluidColor < 0 ? "颜色未知" : String.format("颜色 #%06X", t.fluidColor & 0xFFFFFF),
+                    t.bucket.isEmpty() ? "" : " · 桶 "
+                            + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(t.bucket.getItem()));
         };
     }
 
@@ -197,6 +210,20 @@ public final class PreviewWriter {
                 o.addProperty("iconSource", "sprite");
                 o.addProperty("iconMode", "nearest");
             }
+            case FLUID -> {
+                o.addProperty("color", t.fluidColor);
+                o.addProperty("bucket", t.bucket.isEmpty() ? ""
+                        : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(t.bucket.getItem()).toString());
+                o.addProperty("stillTexture", t.stillTexture == null ? "" : t.stillTexture.toString());
+                o.addProperty("flowingTexture", t.flowingTexture == null ? "" : t.flowingTexture.toString());
+                o.addProperty("Icon", folded(t, 128));
+                o.addProperty("IconSmall", folded(t, 32));
+                o.addProperty("iconSource", t.icons.isEmpty() ? "" : t.fluidIconSource);
+                o.addProperty("iconMode", "nearest");
+                o.addProperty("IconStill", foldedStill(t, 128));
+                o.addProperty("IconStillSmall", foldedStill(t, 32));
+                o.addProperty("stillIconSource", t.stillIcons.isEmpty() ? "" : t.fluidStillIconSource);
+            }
         }
         o.addProperty("kind", kind);
         return PRETTY.toJson(o);
@@ -204,6 +231,14 @@ public final class PreviewWriter {
 
     private static String folded(Target t, int size) {
         var image = t.icons.get(size);
+        if (image == null) {
+            return "";
+        }
+        return "<base64 " + ImageUtil.base64(image).length() + " chars>";
+    }
+
+    private static String foldedStill(Target t, int size) {
+        var image = t.stillIcons.get(size);
         if (image == null) {
             return "";
         }
@@ -278,13 +313,14 @@ public final class PreviewWriter {
             <button class="tab" data-k="item">物品 / 方块</button>
             <button class="tab" data-k="entity">实体</button>
             <button class="tab" data-k="effect">效果</button>
+            <button class="tab" data-k="fluid">流体</button>
             <input type="search" id="q" placeholder="搜索名称 / 英文 / 注册名…">
             </div></header>
             <main id="grid">
             <article class="card intro"><div class="badge">导出概览</div>
             <h2>__NS__</h2>
             <dl class="kv">
-            <dt>条目</dt><dd>__ITEMS__ 物品/方块（__BLOCKS__ 方块） + __ENTITIES__ 实体 + __EFFECTS__ 效果，共 __TOTAL__</dd>
+            <dt>条目</dt><dd>__ITEMS__ 物品/方块（__BLOCKS__ 方块） + __ENTITIES__ 实体 + __EFFECTS__ 效果 + __FLUIDS__ 流体，共 __TOTAL__</dd>
             <dt>图标</dt><dd>__WITHICON__/__TOTAL__</dd>
             <dt>可疑</dt><dd>__SUSPECTS__</dd>
             <dt>无视觉</dt><dd>__NOVISUAL__</dd>
