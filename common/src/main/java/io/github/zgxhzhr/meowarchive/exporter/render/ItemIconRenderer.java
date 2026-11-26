@@ -1,8 +1,16 @@
 package io.github.zgxhzhr.meowarchive.exporter.render;
 
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.block.model.ItemTransforms;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.opengl.GL11;
 
@@ -21,34 +29,68 @@ public final class ItemIconRenderer {
             return null;
         }
         OffscreenTarget target = null;
+        MultiBufferSource.BufferSource buffers = null;
         try {
             target = new OffscreenTarget(size);
             target.begin();
 
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
+            RenderSystem.enableAlphaTest();
+            RenderSystem.defaultAlphaFunc();
+            RenderSystem.enableRescaleNormal();
             RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
             // 1.16.5 还是固定管线：投影矩阵用 ortho 直接设置（左上原点，y 向下）。
             setProjection(size, true);
 
+            mc.getTextureManager().bind(TextureAtlas.LOCATION_BLOCKS);
+            mc.getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS).setFilter(false, false);
+
             // 16×16 的 GUI 物品放大到整张画布。物品栏管线的坐标原点是左上角，
             // 与这里的 y 向下投影一致；读取像素时再做一次上下翻转即可。
-            RenderSystem.pushMatrix();
-            RenderSystem.scalef(size / 16.0F, size / 16.0F, 1.0F);
-            mc.getItemRenderer().renderGuiItem(stack, 0, 0);
-            RenderSystem.popMatrix();
+            PoseStack pose = new PoseStack();
+            pose.scale(size / 16.0F, size / 16.0F, 1.0F);
+            pose.translate(8.0, 8.0, 100.0);
+            pose.scale(1.0F, -1.0F, 1.0F);
+            pose.scale(16.0F, 16.0F, 16.0F);
+
+            // 不走 renderGuiItem：它按模型的 usesBlockLight 决定打光，
+            // 3D 方块在 GUI 里只有 0.4~0.5 的亮度，导出到透明背景上明显偏暗。
+            // 统一改用平面打光（三面亮度接近），并给 3D 模型补一点亮度。
+            BakedModel model = mc.getItemRenderer().getModel(stack, mc.level, mc.player);
+            Lighting.setupForFlatItems();
+            RenderSystem.enableDepthTest();
+            if (model.isGui3d()) {
+                RenderSystem.color4f(1.3F, 1.3F, 1.3F, 1.0F);
+            }
+            buffers = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+            mc.getItemRenderer().render(stack, ItemTransforms.TransformType.GUI, false, pose,
+                    buffers, 15728880, OverlayTexture.NO_OVERLAY, model);
+            buffers.endBatch();
+            buffers = null;
+            RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.disableRescaleNormal();
+            RenderSystem.disableAlphaTest();
 
             return target.read();
         } catch (Throwable t) {
             ExporterLog.LOG.error("物品渲染异常: " + stack.getItem(), t);
             return null;
         } finally {
+            if (buffers != null) {
+                try {
+                    buffers.endBatch();
+                } catch (Throwable ignored) {
+                }
+            }
             if (target != null) {
                 target.close();
             }
             Minecraft main = Minecraft.getInstance();
             main.getMainRenderTarget().bindWrite(true);
             restoreProjection(main);
+            // 还原 GUI 阶段的物品打光，避免影响后续 HUD / 界面绘制
+            Lighting.setupFor3DItems();
             RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
         }
     }

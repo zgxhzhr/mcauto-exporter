@@ -1,13 +1,15 @@
 package io.github.zgxhzhr.meowarchive.exporter.scan;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.ClientLanguage;
+import net.minecraft.client.resources.language.LanguageInfo;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.effect.MobEffect;
@@ -20,16 +22,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class RegistryScanner {
-    private static final Gson GSON = new Gson();
     private static Map<Item, String> creativeTabs;
 
     private RegistryScanner() {
@@ -47,7 +47,7 @@ public final class RegistryScanner {
                 }
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
-                fillNames(t, lang, item.getDescriptionId());
+                fillNames(t, lang, item.getDescriptionId(), stack::getHoverName);
                 t.creativeTab = creativeTab(item, mc);
                 t.tags = itemTags(item);
                 out.add(t);
@@ -60,7 +60,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getDescriptionId());
+                fillNames(t, lang, effect.getDescriptionId(), effect::getDisplayName);
                 t.effectCategory = effect.getCategory().name();
                 t.color = effect.getColor();
                 t.instant = effect.isInstantenous();
@@ -77,7 +77,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.entity(id, type);
-                fillNames(t, lang, type.getDescriptionId());
+                fillNames(t, lang, type.getDescriptionId(), type::getDescription);
                 if (t.nameZh.trim().isEmpty() && t.nameEn.trim().isEmpty()) {
                     // 技术性实体（中英文名都缺失），不参与导出
                     continue;
@@ -122,90 +122,100 @@ public final class RegistryScanner {
         }
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String descId) {
-        t.nameZh = resolve(lang.zh, descId);
-        t.nameEn = resolve(lang.en, descId);
-    }
-
-    private static String resolve(Map<String, String> language, String key) {
-        if (language == null) {
-            return "";
-        }
-        String value = language.get(key);
-        if (value == null || value.equals(key)) {
-            String alternate = language.get(key + ".name");
-            if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
-            }
-            return "";
-        }
-        return value;
+    private static void fillNames(Target t, LanguagePair lang, String descId,
+                                  Supplier<Component> displayName) {
+        t.nameZh = resolveName(lang.zh, descId, displayName);
+        t.nameEn = resolveName(lang.en, descId, displayName);
     }
 
     /**
-     * 1.19.2 没有按语言代码加载整张语言表的公开接口，
-     * 这里直接从资源包读取各命名空间的 lang 文件合并成表。
+     * 用物品/实体的显示名（Component）取值，而不是直接查语言表。
+     *
+     * <p>模组常用带参数的翻译（格雷科技的材料物品就是 {@code %s 桶} 这类），
+     * 直接读语言表只能拿到带 {@code %s} 的模板；Component 会带上参数一起解析。
+     * 两种语言靠临时注入 {@link net.minecraft.locale.Language} 实例实现，取完立即恢复。
      */
+    private static String resolveName(ClientLanguage language, String key, Supplier<Component> name) {
+        if (language == null) {
+            return "";
+        }
+        net.minecraft.locale.Language original = net.minecraft.locale.Language.getInstance();
+        try {
+            net.minecraft.locale.Language.inject(language);
+            String value = clean(name.get().getString());
+            if (unresolved(value, key) || hasPlaceholder(value)) {
+                return resolve(language, key);
+            }
+            return value;
+        } catch (Throwable e) {
+            return "";
+        } finally {
+            net.minecraft.locale.Language.inject(original);
+        }
+    }
+
+    private static String resolve(ClientLanguage language, String key) {
+        if (language == null || key == null || key.trim().isEmpty()) {
+            return "";
+        }
+        net.minecraft.locale.Language original = net.minecraft.locale.Language.getInstance();
+        try {
+            net.minecraft.locale.Language.inject(language);
+            String value = clean(new TranslatableComponent(key).getString());
+            if (unresolved(value, key) || hasPlaceholder(value)) {
+                String alternateKey = key + ".name";
+                if (language.has(alternateKey)) {
+                    String alternate = clean(new TranslatableComponent(alternateKey).getString());
+                    if (!unresolved(alternate, alternateKey) && !hasPlaceholder(alternate)) {
+                        return alternate;
+                    }
+                }
+                return "";
+            }
+            return value;
+        } catch (Throwable ignored) {
+            return "";
+        } finally {
+            net.minecraft.locale.Language.inject(original);
+        }
+    }
+
+    /** 模组名里常带 {@code §r} 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
+    }
+
+    /** 翻译缺失时 Component 会原样返回键名，这类值视为无效。 */
+    private static boolean unresolved(String value, String key) {
+        return value == null || value.trim().isEmpty() || value.equals(key)
+                || value.startsWith("item.") || value.startsWith("block.")
+                || value.startsWith("entity.") || value.startsWith("effect.");
+    }
+
+    /** 原始翻译里可能残留 {@code %s} 这类占位符，导出后会露出模板，视为无效。 */
+    private static boolean hasPlaceholder(String value) {
+        return value != null && value.matches("(?s).*%\\d*\\$?[sSdDfFxX].*");
+    }
+
     private static LanguagePair loadLanguages() {
         LanguagePair pair = new LanguagePair();
-        pair.zh = loadLanguage("zh_cn");
-        pair.en = loadLanguage("en_us");
+        try {
+            net.minecraft.server.packs.resources.ResourceManager rm = Minecraft.getInstance().getResourceManager();
+            pair.zh = ClientLanguage.loadFrom(rm, java.util.Collections.singletonList(languageInfo("zh_cn")));
+            pair.en = ClientLanguage.loadFrom(rm, java.util.Collections.singletonList(languageInfo("en_us")));
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("语言表加载失败: {}", e.toString());
+        }
         return pair;
     }
 
-    private static Map<String, String> loadLanguage(String code) {
-        Map<String, String> out = new HashMap<>();
-        boolean fromPack = false;
-        try {
-            net.minecraft.server.packs.resources.ResourceManager rm = Minecraft.getInstance().getResourceManager();
-            java.util.Collection<ResourceLocation> files = rm.listResources("lang",
-                    path -> path.endsWith("/" + code + ".json") || path.equals(code + ".json"));
-            for (ResourceLocation file : files) {
-                fromPack = true;
-                try (java.io.InputStream in = rm.getResource(file).getInputStream()) {
-                    mergeLanguage(out, in);
-                } catch (Throwable ignored) {
-                    // 单个语言文件损坏不影响其它命名空间
-                }
-            }
-        } catch (Throwable e) {
-            ExporterLog.LOG.warn("语言表（资源包）加载失败 {}: {}", code, e.toString());
-        }
-        // 资源管理器在某些 loader/资源包组合下拿不到模组内置语言，再从 classpath 直接读一遍兜底。
-        int direct = 0;
-        try {
-            java.util.LinkedHashSet<String> namespaces =
-                    new java.util.LinkedHashSet<>(io.github.zgxhzhr.meowarchive.exporter.platform.Services.PLATFORM.loadedModIds());
-            namespaces.add("minecraft");
-            ClassLoader cl = RegistryScanner.class.getClassLoader();
-            for (String ns : namespaces) {
-                try (java.io.InputStream in = cl.getResourceAsStream("assets/" + ns + "/lang/" + code + ".json")) {
-                    if (in == null) {
-                        continue;
-                    }
-                    mergeLanguage(out, in);
-                    direct++;
-                } catch (Throwable ignored) {
-                }
-            }
-        } catch (Throwable e) {
-            ExporterLog.LOG.warn("语言表（classpath）加载失败 {}: {}", code, e.toString());
-        }
-        ExporterLog.LOG.info("语言 {} 加载完成：资源包={} classpath={} 键={}",
-                code, fromPack, direct, out.size());
-        return out;
-    }
-
-    private static void mergeLanguage(Map<String, String> out, java.io.InputStream in) {
-        JsonObject json = GSON.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
-        if (json == null) {
-            return;
-        }
-        for (java.util.Map.Entry<String, com.google.gson.JsonElement> field : json.entrySet()) {
-            if (field.getValue().isJsonPrimitive()) {
-                out.put(field.getKey(), field.getValue().getAsString());
-            }
-        }
+    /** 语言列表里没有该代码时按代码构造，loadFrom 只用到 getCode。 */
+    private static LanguageInfo languageInfo(String code) {
+        LanguageInfo info = Minecraft.getInstance().getLanguageManager().getLanguage(code);
+        return info != null ? info : new LanguageInfo(code, code, code, false);
     }
 
     private static String creativeTab(Item item, Minecraft mc) {
@@ -238,7 +248,7 @@ public final class RegistryScanner {
     }
 
     private static final class LanguagePair {
-        Map<String, String> zh;
-        Map<String, String> en;
+        ClientLanguage zh;
+        ClientLanguage en;
     }
 }
