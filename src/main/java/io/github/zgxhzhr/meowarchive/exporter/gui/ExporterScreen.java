@@ -11,8 +11,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -67,15 +70,26 @@ public final class ExporterScreen extends GuiScreen {
         this.children.clear();
         namespaces.clear();
         Set<String> contentNamespaces = contentNamespaces();
-        List<String> modIds = new ArrayList<>(ClientPlatform.loadedModIds());
-        java.util.Collections.sort(modIds);
-        for (String id : modIds) {
-            if (id.equals("minecraft") || id.equals("java") || id.equals("forge") || id.equals("fml")) {
+        Map<String, String> modIdByLower = new HashMap<>();
+        for (String id : ClientPlatform.loadedModIds()) {
+            if (isHiddenNamespace(id)) {
                 continue;
             }
-            if (contentNamespaces.contains(id)) {
-                namespaces.add(new NsEntry(id, ClientPlatform.modName(id)));
+            modIdByLower.put(id.toLowerCase(Locale.ROOT), id);
+        }
+        List<String> domains = new ArrayList<>(contentNamespaces);
+        java.util.Collections.sort(domains);
+        for (String domain : domains) {
+            if (isHiddenNamespace(domain)) {
+                continue;
             }
+            // 注册域常被模组小写，modId 却可能是 "Jaffas" 这类带大写的名字；
+            // 按小写匹配回原始 modId 取显示名，匹配不到就直接用域名，避免整块内容被漏掉。
+            String modId = modIdByLower.get(domain.toLowerCase(Locale.ROOT));
+            namespaces.add(new NsEntry(domain, modId == null ? domain : ClientPlatform.modName(modId)));
+        }
+        if (contentNamespaces.contains("minecraft")) {
+            namespaces.add(0, new NsEntry("minecraft", "Minecraft"));
         }
         if (selected.isEmpty() && !namespaces.isEmpty()) {
             selected.add(namespaces.get(0).id);
@@ -153,6 +167,11 @@ public final class ExporterScreen extends GuiScreen {
                 this::openOutput));
         addButton(new WoodButton(10, contentRight - closeW, actionY, closeW, 20, "关闭",
                 () -> mc.displayGuiScreen(null)));
+    }
+
+    private static boolean isHiddenNamespace(String id) {
+        return "minecraft".equals(id) || "java".equals(id) || "forge".equals(id)
+                || "fml".equals(id) || "mcp".equals(id) || "fabric".equals(id);
     }
 
     private void start() {

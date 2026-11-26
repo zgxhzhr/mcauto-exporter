@@ -22,6 +22,8 @@ import net.minecraft.resources.IResource;
 import net.minecraft.resources.IResourceManager;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.BufferedReader;
@@ -34,6 +36,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public final class RegistryScanner {
     private static Map<Item, String> creativeTabs;
@@ -58,7 +61,7 @@ public final class RegistryScanner {
                 // 1.13 的变体（药水、附魔书等）靠 NBT 区分，按创造栏逐条展开
                 for (ItemStack stack : variants(item)) {
                     Target t = Target.item(id, stack);
-                    fillNames(t, lang, item.getTranslationKey());
+                    fillNames(t, lang, stack.getTranslationKey(), stack::getDisplayName);
                     t.creativeTab = creativeTab(item);
                     // 1.13 移除了矿物词典，改用标签体系；这里保持空列表以维持输出结构
                     t.tags = "[]";
@@ -73,7 +76,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getName());
+                fillNames(t, lang, effect.getName(), effect::getDisplayName);
                 t.effectCategory = effect.isBeneficial() ? "BENEFICIAL"
                         : (effect.isBadEffect() ? "HARMFUL" : "NEUTRAL");
                 t.color = effect.getLiquidColor();
@@ -100,7 +103,7 @@ public final class RegistryScanner {
                     ExporterLog.LOG.debug("实体创建失败 {}: {}", id, e.toString());
                 }
                 if (entity != null) {
-                    fillNames(t, lang, type.getTranslationKey());
+                    fillNames(t, lang, type.getTranslationKey(), type::func_212546_e);
                     try {
                         if (entity instanceof EntityLivingBase) {
                             t.maxHealth = ((EntityLivingBase) entity).getMaxHealth();
@@ -128,9 +131,94 @@ public final class RegistryScanner {
         return out;
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String key) {
-        t.nameZh = resolve(lang.zh, key);
-        t.nameEn = resolve(lang.en, key);
+    private static void fillNames(Target t, LanguagePair lang, String key,
+                                  Supplier<ITextComponent> display) {
+        t.nameZh = resolveName(lang.zh, lang.en, key, display);
+        t.nameEn = resolveName(lang.en, lang.zh, key, display);
+    }
+
+    /**
+     * 用显示名组件取值，按目标语言重新解析翻译参数。
+     *
+     * <p>模组常用带参数的翻译（「%s 桶」这类），直接读语言表只能拿到带占位符的模板；
+     * 组件里带着实参，可以按各自语言格式化。当前语言仍解析不出来时用另一语言的显示名兜底，
+     * 保证不会把可见的 {@code %s} 写进 JSON。
+     */
+    private static String resolveName(Map<String, String> language, Map<String, String> other,
+                                      String key, Supplier<ITextComponent> display) {
+        if (language == null) {
+            return "";
+        }
+        String value = renderDisplay(display, language);
+        if (!unresolved(value, key)) {
+            return value;
+        }
+        value = resolve(language, key);
+        if (!unresolved(value, key)) {
+            return value;
+        }
+        String alternate = renderDisplay(display, other);
+        if (unresolved(alternate, key)) {
+            alternate = resolve(other, key);
+        }
+        return unresolved(alternate, key) ? "" : alternate;
+    }
+
+    private static String renderDisplay(Supplier<ITextComponent> display, Map<String, String> language) {
+        if (display == null || language == null) {
+            return "";
+        }
+        try {
+            return clean(renderComponent(display.get(), language));
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
+    /** 递归展开组件：翻译组件按目标语言取模板并用实参格式化，其余组件保持原文。 */
+    private static String renderComponent(ITextComponent component, Map<String, String> language) {
+        if (component == null) {
+            return "";
+        }
+        String self;
+        if (component instanceof TextComponentTranslation) {
+            TextComponentTranslation translation = (TextComponentTranslation) component;
+            self = format(language, translation.getKey(), translation.getFormatArgs());
+        } else {
+            self = component.getUnformattedComponentText();
+        }
+        StringBuilder out = new StringBuilder(self == null ? "" : self);
+        for (ITextComponent sibling : component.getSiblings()) {
+            out.append(renderComponent(sibling, language));
+        }
+        return out.toString();
+    }
+
+    private static String format(Map<String, String> language, String key, Object[] args) {
+        if (language == null || key == null) {
+            return "";
+        }
+        String template = language.get(key);
+        if (template == null) {
+            template = language.get(key + ".name");
+        }
+        if (template == null) {
+            return "";
+        }
+        if (args == null) {
+            args = new Object[0];
+        }
+        Object[] resolved = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            resolved[i] = args[i] instanceof ITextComponent
+                    ? renderComponent((ITextComponent) args[i], language) : args[i];
+        }
+        try {
+            return String.format(template, resolved);
+        } catch (RuntimeException e) {
+            // 模板需要的参数比组件提供的多，交给上层按无效处理
+            return "";
+        }
     }
 
     private static String resolve(Map<String, String> language, String key) {
@@ -141,11 +229,28 @@ public final class RegistryScanner {
         if (value == null || value.equals(key)) {
             String alternate = language.get(key + ".name");
             if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
+                return clean(alternate);
             }
             return "";
         }
-        return value;
+        return clean(value);
+    }
+
+    /** 模组名里常带 §r 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
+    }
+
+    /** 翻译缺失时会原样返回键名；仍带 % 说明参数没解析出来，同样视为无效。 */
+    private static boolean unresolved(String value, String key) {
+        return value == null || value.isEmpty() || value.equals(key)
+                || value.indexOf('%') >= 0
+                || value.startsWith("item.") || value.startsWith("block.")
+                || value.startsWith("entity.") || value.startsWith("effect.")
+                || value.startsWith("Format error");
     }
 
     private static LanguagePair loadLanguages() {
