@@ -1,12 +1,14 @@
 package io.github.zgxhzhr.meowarchive.exporter.scan;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.ClientLanguage;
+import net.minecraft.client.resources.language.LanguageInfo;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
@@ -19,16 +21,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class RegistryScanner {
-    private static final Gson GSON = new Gson();
     private static Map<Item, String> creativeTabs;
 
     private RegistryScanner() {
@@ -46,7 +46,7 @@ public final class RegistryScanner {
                 }
                 ItemStack stack = new ItemStack(item);
                 Target t = Target.item(id, stack);
-                fillNames(t, lang, item.getDescriptionId());
+                fillNames(t, lang, item.getDescriptionId(), stack::getHoverName);
                 t.creativeTab = creativeTab(item, mc);
                 t.tags = stack.getTags()
                         .map(TagKey::location)
@@ -62,7 +62,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.effect(id, effect);
-                fillNames(t, lang, effect.getDescriptionId());
+                fillNames(t, lang, effect.getDescriptionId(), effect::getDisplayName);
                 t.effectCategory = effect.getCategory().name();
                 t.color = effect.getColor();
                 t.instant = effect.isInstantenous();
@@ -79,7 +79,7 @@ public final class RegistryScanner {
                     continue;
                 }
                 Target t = Target.entity(id, type);
-                fillNames(t, lang, type.getDescriptionId());
+                fillNames(t, lang, type.getDescriptionId(), type::getDescription);
                 if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
                     // 技术性实体（中英文名都缺失），不参与导出
                     continue;
@@ -109,60 +109,91 @@ public final class RegistryScanner {
         return out;
     }
 
-    private static void fillNames(Target t, LanguagePair lang, String descId) {
-        t.nameZh = resolve(lang.zh, descId);
-        t.nameEn = resolve(lang.en, descId);
-    }
-
-    private static String resolve(Map<String, String> language, String key) {
-        if (language == null) {
-            return "";
-        }
-        String value = language.get(key);
-        if (value == null || value.equals(key)) {
-            String alternate = language.get(key + ".name");
-            if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
-            }
-            return "";
-        }
-        return value;
+    private static void fillNames(Target t, LanguagePair lang, String descId,
+                                  Supplier<Component> displayName) {
+        t.nameZh = resolveName(lang.zh, descId, displayName);
+        t.nameEn = resolveName(lang.en, descId, displayName);
     }
 
     /**
-     * 直接从资源包读取各命名空间的 lang 文件合并成表。
+     * 用物品/实体的显示名（Component）取值，而不是直接查语言表。
+     *
+     * <p>模组常用带参数的翻译（格雷科技的材料物品就是 {@code %s 桶} 这类），
+     * 直接读语言表只能拿到带 {@code %s} 的模板；Component 会带上参数一起解析。
+     * 两种语言靠临时注入 {@link Language} 实例实现，取完立即恢复。
      */
-    private static LanguagePair loadLanguages() {
-        LanguagePair pair = new LanguagePair();
-        pair.zh = loadLanguage("zh_cn");
-        pair.en = loadLanguage("en_us");
-        return pair;
+    private static String resolveName(ClientLanguage language, String key, Supplier<Component> name) {
+        if (language == null) {
+            return "";
+        }
+        Language original = Language.getInstance();
+        try {
+            Language.inject(language);
+            String value = clean(name.get().getString());
+            if (unresolved(value, key)) {
+                return resolve(language, key);
+            }
+            return value;
+        } catch (Throwable e) {
+            return "";
+        } finally {
+            Language.inject(original);
+        }
     }
 
-    private static Map<String, String> loadLanguage(String code) {
-        Map<String, String> out = new HashMap<>();
+    private static String resolve(ClientLanguage language, String key) {
+        if (language == null || key == null || key.isBlank()) {
+            return "";
+        }
+        Language original = Language.getInstance();
+        try {
+            Language.inject(language);
+            String value = clean(Component.translatable(key).getString());
+            if (unresolved(value, key)) {
+                String alternateKey = key + ".name";
+                if (language.has(alternateKey)) {
+                    String alternate = clean(Component.translatable(alternateKey).getString());
+                    if (!unresolved(alternate, alternateKey)) {
+                        return alternate;
+                    }
+                }
+                return "";
+            }
+            return value;
+        } catch (Throwable ignored) {
+            return "";
+        } finally {
+            Language.inject(original);
+        }
+    }
+
+    /** 模组名里常带 {@code §r} 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
+    }
+
+    /** 翻译缺失时 Component 会原样返回键名，这类值视为无效。 */
+    private static boolean unresolved(String value, String key) {
+        return value == null || value.isBlank() || value.equals(key)
+                || value.startsWith("item.") || value.startsWith("block.")
+                || value.startsWith("entity.") || value.startsWith("effect.");
+    }
+
+    private static LanguagePair loadLanguages() {
+        LanguagePair pair = new LanguagePair();
         try {
             var rm = Minecraft.getInstance().getResourceManager();
-            var files = rm.listResources("lang", loc -> loc.getPath().equals("lang/" + code + ".json"));
-            for (var entry : files.entrySet()) {
-                try (var in = entry.getValue().open()) {
-                    JsonObject json = GSON.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class);
-                    if (json == null) {
-                        continue;
-                    }
-                    for (var field : json.entrySet()) {
-                        if (field.getValue().isJsonPrimitive()) {
-                            out.put(field.getKey(), field.getValue().getAsString());
-                        }
-                    }
-                } catch (Throwable ignored) {
-                    // 单个语言文件损坏不影响其它命名空间
-                }
-            }
+            pair.zh = ClientLanguage.loadFrom(rm,
+                    List.of(new LanguageInfo("zh_cn", "中文（简体）", "中国", false)));
+            pair.en = ClientLanguage.loadFrom(rm,
+                    List.of(new LanguageInfo("en_us", "English (US)", "United States", false)));
         } catch (Throwable e) {
-            ExporterLog.LOG.warn("语言表加载失败 {}: {}", code, e.toString());
+            ExporterLog.LOG.warn("语言表加载失败: {}", e.toString());
         }
-        return out;
+        return pair;
     }
 
     private static String creativeTab(Item item, Minecraft mc) {
@@ -202,7 +233,7 @@ public final class RegistryScanner {
     }
 
     private static final class LanguagePair {
-        Map<String, String> zh;
-        Map<String, String> en;
+        ClientLanguage zh;
+        ClientLanguage en;
     }
 }
