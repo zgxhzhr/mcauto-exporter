@@ -121,7 +121,7 @@ public final class FluidIconRenderer {
                 return null;
             }
             BufferedImage scaled = ImageUtil.fit(firstFrame(source), size);
-            return tint < 0 ? scaled : applyTint(scaled, tint);
+            return tint == -1 ? scaled : applyTint(scaled, tint);
         } catch (Throwable t) {
             return null;
         }
