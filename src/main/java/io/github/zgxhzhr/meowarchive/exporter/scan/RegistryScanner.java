@@ -20,6 +20,7 @@ import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.Potion;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.StringTranslate;
 import net.minecraftforge.oredict.OreDictionary;
 
 import java.io.BufferedReader;
@@ -27,6 +28,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -143,7 +145,7 @@ public final class RegistryScanner {
                         continue;
                     }
                     Target t = Target.item(id, stack);
-                    fillNames(t, lang, stack.getUnlocalizedName() + ".name");
+                    fillItemNames(t, lang, stack.getUnlocalizedName() + ".name", stack);
                     t.creativeTab = creativeTab(item);
                     t.tags = oreDictNames(item);
                     out.add(t);
@@ -246,7 +248,12 @@ public final class RegistryScanner {
                     ExporterLog.LOG.debug("实体创建失败 {}: {}", id, e.toString());
                 }
                 if (entity != null) {
-                    fillNames(t, lang, "entity." + name + ".name");
+                    // 用实体自带的注册名取翻译键，模组改过 EntityList 映射时也能对上
+                    String entityKey = EntityList.getEntityString(entity);
+                    if (entityKey == null || entityKey.isEmpty()) {
+                        entityKey = name;
+                    }
+                    fillNames(t, lang, "entity." + entityKey + ".name");
                     try {
                         if (entity instanceof EntityLivingBase) {
                             t.maxHealth = ((EntityLivingBase) entity).getMaxHealth();
@@ -318,6 +325,142 @@ public final class RegistryScanner {
         t.nameEn = resolve(lang.en, key);
     }
 
+    /**
+     * 物品名常带参数（格雷科技的「%s 桶」这类），语言表里只有模板，直接查表会导出可见的 %s。
+     * 当前语言先取显示名；另一种语言靠临时替换 StringTranslate 的语言表再取显示名，
+     * 这样参数会由物品自身的 getItemStackDisplayName 展开。取完立即还原语言表。
+     */
+    private static void fillItemNames(Target t, LanguagePair lang, String key, ItemStack stack) {
+        String current = "";
+        try {
+            current = clean(stack.getDisplayName());
+        } catch (Throwable ignored) {
+        }
+        String code = clientLanguageCode();
+        // 显示名只对当前语言有效；客户端是第三种语言时两种名字都回退到语言表
+        t.nameZh = resolveName(lang.zh, key, stack, code.startsWith("zh") ? current : null);
+        t.nameEn = resolveName(lang.en, key, stack, code.startsWith("en") ? current : null);
+        // 某一种语言仍无法还原参数时，回退到另一种语言已展开的名字
+        if (t.nameZh.isEmpty()) {
+            t.nameZh = t.nameEn;
+        }
+        if (t.nameEn.isEmpty()) {
+            t.nameEn = t.nameZh;
+        }
+    }
+
+    private static String resolveName(Map<String, String> language, String key, ItemStack stack,
+                                      String currentDisplay) {
+        String value = clean(currentDisplay);
+        if (value.isEmpty() || value.indexOf('%') >= 0 || value.equals(key)) {
+            String template = language == null ? null : language.get(key);
+            // 语言表里没有模板或模板本身不带参数时不必整表替换，直接查表即可
+            if (template == null || template.indexOf('%') >= 0) {
+                value = clean(displayName(stack, language));
+            }
+        }
+        if (value.isEmpty() || value.indexOf('%') >= 0 || value.equals(key)) {
+            value = resolve(language, key);
+        }
+        // 参数无法还原时宁可不写，也不导出可见的占位符
+        return value.indexOf('%') >= 0 ? "" : value;
+    }
+
+    /** 临时替换客户端语言表单例后取显示名；替换失败时返回空，由调用方回退到语言表。 */
+    private static String displayName(ItemStack stack, Map<String, String> language) {
+        if (language == null || language.isEmpty()) {
+            return "";
+        }
+        Map<String, String> original;
+        try {
+            original = currentLanguageMap();
+        } catch (Throwable e) {
+            return "";
+        }
+        try {
+            StringTranslate.replaceWith(language);
+        } catch (Throwable e) {
+            // 替换途中可能已经清空原表，先恢复再放弃
+            try {
+                StringTranslate.replaceWith(original);
+            } catch (Throwable ignored) {
+            }
+            return "";
+        }
+        try {
+            return stack.getDisplayName();
+        } catch (Throwable e) {
+            return "";
+        } finally {
+            try {
+                StringTranslate.replaceWith(original);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /** 语言表是 StringTranslate 单例里的可变 Map，先复制一份，避免替换时把原表清空。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> currentLanguageMap() throws Exception {
+        Object instance = stringTranslateInstance();
+        Field listField = findField(StringTranslate.class, "languageList");
+        if (listField == null) {
+            // 生产环境字段名是 SRG 名，按类型找唯一的 Map 字段
+            for (Field field : StringTranslate.class.getDeclaredFields()) {
+                if (Map.class.isAssignableFrom(field.getType())) {
+                    listField = field;
+                    break;
+                }
+            }
+        }
+        if (instance == null || listField == null) {
+            throw new IllegalStateException("无法定位 StringTranslate 语言表");
+        }
+        listField.setAccessible(true);
+        return new HashMap<>((Map<String, String>) listField.get(instance));
+    }
+
+    private static Object stringTranslateInstance() throws Exception {
+        Field instanceField = findField(StringTranslate.class, "instance");
+        if (instanceField != null) {
+            instanceField.setAccessible(true);
+            Object instance = instanceField.get(null);
+            if (instance != null) {
+                return instance;
+            }
+        }
+        // 生产环境按类型找静态单例字段
+        for (Field field : StringTranslate.class.getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                    && StringTranslate.class.isAssignableFrom(field.getType())) {
+                field.setAccessible(true);
+                Object instance = field.get(null);
+                if (instance != null) {
+                    return instance;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Field findField(Class<?> type, String name) {
+        try {
+            return type.getDeclaredField(name);
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+    }
+
+    private static String clientLanguageCode() {
+        try {
+            String code = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage()
+                    .getLanguageCode();
+            return code == null ? "" : code.toLowerCase(java.util.Locale.ROOT);
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
     private static String resolve(Map<String, String> language, String key) {
         if (language == null || key == null) {
             return "";
@@ -326,11 +469,19 @@ public final class RegistryScanner {
         if (value == null || value.equals(key)) {
             String alternate = language.get(key + ".name");
             if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
+                return clean(alternate);
             }
             return "";
         }
-        return value;
+        return clean(value);
+    }
+
+    /** 名称里常带 §r 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
     }
 
     private static LanguagePair loadLanguages() {
