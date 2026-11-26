@@ -20,6 +20,7 @@ import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.Potion;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.StringTranslate;
 import net.minecraftforge.oredict.OreDictionary;
 
 import java.io.BufferedReader;
@@ -27,6 +28,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +46,12 @@ public final class RegistryScanner {
     private static Map<Item, String> oreDict;
     /** 创造栏名的解析依赖扫描时构建的语言表，避免依赖客户端 I18n（部分环境读不到模组语言）。 */
     private static LanguagePair scanLang;
+    /** StringTranslate 语言表的反射入口，正式环境的类经过 SRG 重命名，探测失败后不再重试。 */
+    private static Field translateInstanceField;
+    private static Field translateListField;
+    private static boolean languageReflectionFailed;
+    private static final java.util.regex.Pattern PLACEHOLDER =
+            java.util.regex.Pattern.compile("%(\\d+\\$)?[\\d\\.]*(s|d|f)");
 
     private RegistryScanner() {
     }
@@ -152,6 +160,7 @@ public final class RegistryScanner {
         } catch (Throwable e) {
             ExporterLog.LOG.warn("扫描物品注册表失败: {}", e.toString());
         }
+        fillItemNames(out, lang);
     }
 
     /**
@@ -318,6 +327,159 @@ public final class RegistryScanner {
         t.nameEn = resolve(lang.en, key);
     }
 
+    /**
+     * 物品名常带参数（格雷科技的「%s 桶」这类），语言表里只有模板，直接查表会导出可见的 %s。
+     * 当前语言直接取显示名；另一种语言临时替换 StringTranslate 的语言表后整批取显示名，
+     * 参数由物品自身的 getItemStackDisplayName 展开，取完立即还原。替换失败时两种语言
+     * 都退回语言表，含未解析占位符的那一种再用另一种语言的名字兜底。
+     */
+    private static void fillItemNames(List<Target> targets, LanguagePair lang) {
+        String current = currentLanguageCode();
+        boolean zhCurrent = current.startsWith("zh");
+        boolean enCurrent = current.startsWith("en");
+        // 当前语言直接用客户端已加载的显示名
+        if (zhCurrent || enCurrent) {
+            for (Target t : targets) {
+                if (t.stack == null) {
+                    continue;
+                }
+                String name = clean(displayName(t.stack));
+                if (zhCurrent) {
+                    t.nameZh = name;
+                } else {
+                    t.nameEn = name;
+                }
+            }
+        }
+        // 另一种语言切一次语言表后整批取显示名，避免逐条物品复制整张语言表
+        if (!zhCurrent) {
+            fillDisplayNames(targets, lang.zh, true);
+        }
+        if (!enCurrent) {
+            fillDisplayNames(targets, lang.en, false);
+        }
+        for (Target t : targets) {
+            if (t.stack == null) {
+                continue;
+            }
+            String key = t.stack.getUnlocalizedName() + ".name";
+            t.nameZh = finishName(t.nameZh, lang.zh, key);
+            t.nameEn = finishName(t.nameEn, lang.en, key);
+            // 某一种语言仍无法还原参数时，回退到另一种语言已展开的名字
+            if (t.nameZh.isEmpty()) {
+                t.nameZh = t.nameEn;
+            }
+            if (t.nameEn.isEmpty()) {
+                t.nameEn = t.nameZh;
+            }
+        }
+    }
+
+    /** 临时换掉 StringTranslate 的语言表，整批取指定语言的显示名，取完还原。 */
+    private static void fillDisplayNames(List<Target> targets, Map<String, String> language,
+                                         boolean toZh) {
+        Map<String, String> original = swapLanguage(language);
+        if (original == null) {
+            return;
+        }
+        try {
+            for (Target t : targets) {
+                if (t.stack == null) {
+                    continue;
+                }
+                String name = clean(displayName(t.stack));
+                if (toZh) {
+                    t.nameZh = name;
+                } else {
+                    t.nameEn = name;
+                }
+            }
+        } finally {
+            restoreLanguage(original);
+        }
+    }
+
+    private static String finishName(String display, Map<String, String> language, String key) {
+        String value = clean(display);
+        if (value.isEmpty() || hasPlaceholder(value) || value.equals(key)) {
+            value = resolve(language, key);
+        }
+        // 参数无法还原时宁可不写，也不导出可见的占位符
+        return hasPlaceholder(value) ? "" : value;
+    }
+
+    /** String.format 的占位符：%s、%d、%1$s 这类，剩下说明参数没有解析出来。 */
+    private static boolean hasPlaceholder(String value) {
+        return value != null && PLACEHOLDER.matcher(value).find();
+    }
+
+    /** 取显示名；物品自身的名称解析被优化或缺少翻译时返回其原始键，由调用方识别。 */
+    private static String displayName(ItemStack stack) {
+        try {
+            return stack.getDisplayName();
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
+    /**
+     * 语言表是 StringTranslate 私有的 final Map，直接换引用即可原地切换；
+     * 正式环境的类经过 SRG 重命名，两套字段名都试一遍。
+     */
+    private static Map<String, String> swapLanguage(Map<String, String> language) {
+        if (language == null || languageReflectionFailed) {
+            return null;
+        }
+        try {
+            if (translateInstanceField == null) {
+                translateInstanceField = findField(StringTranslate.class,
+                        "instance", "field_74817_a");
+                translateListField = findField(StringTranslate.class,
+                        "languageList", "field_74816_c");
+            }
+            Object instance = translateInstanceField.get(null);
+            @SuppressWarnings("unchecked")
+            Map<String, String> original = (Map<String, String>) translateListField.get(instance);
+            translateListField.set(instance, language);
+            return original;
+        } catch (Throwable e) {
+            languageReflectionFailed = true;
+            ExporterLog.LOG.warn("切换语言表失败，物品名按当前语言回退: {}", e.toString());
+            return null;
+        }
+    }
+
+    private static void restoreLanguage(Map<String, String> original) {
+        try {
+            Object instance = translateInstanceField.get(null);
+            translateListField.set(instance, original);
+        } catch (Throwable e) {
+            ExporterLog.LOG.warn("还原语言表失败: {}", e.toString());
+        }
+    }
+
+    private static Field findField(Class<?> type, String... names) throws NoSuchFieldException {
+        for (String name : names) {
+            try {
+                Field field = type.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        throw new NoSuchFieldException(type.getName() + ": " + java.util.Arrays.toString(names));
+    }
+
+    private static String currentLanguageCode() {
+        try {
+            String code = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage()
+                    .getLanguageCode();
+            return code == null ? "" : code.toLowerCase(java.util.Locale.ROOT);
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
     private static String resolve(Map<String, String> language, String key) {
         if (language == null || key == null) {
             return "";
@@ -326,11 +488,19 @@ public final class RegistryScanner {
         if (value == null || value.equals(key)) {
             String alternate = language.get(key + ".name");
             if (alternate != null && !alternate.equals(key + ".name")) {
-                return alternate;
+                return clean(alternate);
             }
             return "";
         }
-        return value;
+        return clean(value);
+    }
+
+    /** 名称里常带 §r 这类格式码，写进 JSON 会变成乱码字符。 */
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll("§.", "").trim();
     }
 
     private static LanguagePair loadLanguages() {
