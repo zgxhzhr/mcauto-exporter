@@ -1,6 +1,6 @@
 # Meow Archive Exporter
 
-Minecraft **1.21.1 / Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF 的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
+Minecraft **1.21.1 / Fabric 与 NeoForge** 客户端模组：在游戏内导出物品、方块、实体、BUFF/DEBUFF、流体的图标与数据，JSON 字段沿用 LetMeSeeSee（LMS）的 mcmod 导出格式。
 
 MIT License。
 
@@ -12,6 +12,7 @@ MIT License。
 - BUFF / DEBUFF 图标：直接读取 `textures/mob_effect/<id>.png` 原图，NEAREST 放大，并校验颜色数
 - 物品 `<ns>/<ns>_items.json`、实体 `<ns>/<ns>_entities.json` 与 LMS 字段一致
 - 效果 `<ns>/<ns>_effects.json` 为本仓库扩展，字段见 `docs/lms-json.md`
+- 流体 `<ns>/<ns>_fluids.json` 为本仓库扩展：只导 source 流体；主图标是立体方块（顶面静止贴图 + 侧面流动贴图，自动取动画首帧），无静止贴图时退回桶物品；平面图标另存 `IconStill`
 - 合并文件 `<ns>/<ns>_all.json` 包含该命名空间全部条目，每条附加 `kind`
 - 预览页 `<ns>/preview.html`：单文件、图标内嵌，可筛选/搜索，点卡片复制注册名
 - 失败、无可见模型与可疑条目写入 `failures.txt`，`status.json` 同步列出注册名与原因
@@ -32,7 +33,7 @@ MIT License。
 | 完整导出（JSON + 图标） | 渲染图标、写 `<namespace>/icons` PNG，并写出 JSON |
 | 只导出 JSON | 不渲染，图标字段为空，只写 JSON |
 | 只导出图标 | 只写 `<namespace>/icons` PNG，不写 JSON |
-| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果，只导它的图 |
+| 导出单个图标 | 打开条目搜索列表，选一个物品/实体/效果/流体，只导它的图 |
 
 ### 输出
 

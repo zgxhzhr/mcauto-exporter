@@ -164,6 +164,10 @@ public final class TargetPickerScreen extends Screen {
                     kind = "[实体]";
                     kindColor = 0xFF66E0E0;
                 }
+                case FLUID -> {
+                    kind = "[流体]";
+                    kindColor = 0xFF99CC66;
+                }
                 default -> {
                     kind = "[效果]";
                     kindColor = 0xFFCC99FF;

@@ -4,7 +4,7 @@ All files are JSON Lines: one object per line, UTF-8, no wrapping array.
 
 ## Merged — `<namespace>/<namespace>_all.json`
 
-Every exported entry of the namespace in a single file: items first, then entities, then effects. Each line keeps the fields of its own file above and adds `kind` = `item` / `entity` / `effect`. The split files stay unchanged.
+Every exported entry of the namespace in a single file: items first, then entities, then effects, then fluids. Each line keeps the fields of its own file above and adds `kind` = `item` / `entity` / `effect` / `fluid`. The split files stay unchanged.
 
 ## Items — `<namespace>/<namespace>_items.json`
 
@@ -69,3 +69,25 @@ category     → category
 IconSmall    → icon32
 Icon         → icon128
 ```
+
+## Fluids — `<namespace>/<namespace>_fluids.json` (this project's extension)
+
+只导出 source 流体（`fluid.isSource(defaultFluidState())` 为真的条目）。
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | `zh_cn`，缺失时回退 `en_us`，再退回注册名转写 |
+| `Englishname` | string | `en_us`，缺失时按注册名转写 |
+| `mod` | string | namespace |
+| `registerName` | string | `namespace:path` |
+| `color` | int | 平台给出的 ARGB 着色，`-1` 表示未知 |
+| `bucket` | string | 对应桶物品 id，无桶为空串 |
+| `stillTexture` | string | 静止纹理 id（如 `block/water_still`），无则空串 |
+| `flowingTexture` | string | 流动纹理 id（立方体侧面），无则空串 |
+| `Icon` | string | base64 PNG 128×128，立体方块（顶面静止贴图 + 侧面流动贴图） |
+| `IconSmall` | string | base64 PNG 32×32 |
+| `iconSource` | string | `cube`（立体方块）/ `texture` / `bucket` / 空；立体渲染失败时退回平面图 |
+| `iconMode` | string | always `nearest` |
+| `IconStill` | string | base64 PNG 128×128，保留的平面图（静止贴图优先，无贴图退回桶） |
+| `IconStillSmall` | string | base64 PNG 32×32 |
+| `stillIconSource` | string | 平面图来源：`texture` / `bucket` / 空 |
