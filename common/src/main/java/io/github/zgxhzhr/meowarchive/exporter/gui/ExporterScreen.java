@@ -16,8 +16,11 @@ import net.minecraft.network.chat.Component;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -72,15 +75,26 @@ public final class ExporterScreen extends Screen {
     protected void init() {
         namespaces.clear();
         Set<String> contentNamespaces = contentNamespaces();
-        List<String> modIds = new ArrayList<>(Services.PLATFORM.loadedModIds());
-        modIds.sort(String::compareTo);
-        for (String id : modIds) {
-            if (id.equals("minecraft") || id.equals("java") || id.startsWith("fabric")) {
+        Map<String, String> modIdByLower = new HashMap<>();
+        for (String id : Services.PLATFORM.loadedModIds()) {
+            if (isHiddenNamespace(id)) {
                 continue;
             }
-            if (contentNamespaces.contains(id)) {
-                namespaces.add(new NsEntry(id, Services.PLATFORM.modName(id)));
+            modIdByLower.put(id.toLowerCase(Locale.ROOT), id);
+        }
+        List<String> domains = new ArrayList<>(contentNamespaces);
+        domains.sort(String::compareTo);
+        for (String domain : domains) {
+            if (isHiddenNamespace(domain)) {
+                continue;
             }
+            // 注册表命名空间被强制小写，modId 却可能是 "Jaffas" 这类带大写的名字；
+            // 按小写匹配回原始 modId 取显示名，匹配不到就直接用命名空间，避免整块内容被漏掉。
+            String modId = modIdByLower.get(domain.toLowerCase(Locale.ROOT));
+            namespaces.add(new NsEntry(domain, modId == null ? domain : Services.PLATFORM.modName(modId)));
+        }
+        if (contentNamespaces.contains("minecraft")) {
+            namespaces.add(0, new NsEntry("minecraft", "Minecraft"));
         }
         if (selected.isEmpty() && !namespaces.isEmpty()) {
             selected.add(namespaces.get(0).id);
@@ -223,6 +237,12 @@ public final class ExporterScreen extends Screen {
         BuiltInRegistries.MOB_EFFECT.keySet().forEach(id -> out.add(id.getNamespace()));
         BuiltInRegistries.ENTITY_TYPE.keySet().forEach(id -> out.add(id.getNamespace()));
         return out;
+    }
+
+    /** 加载器自己用的命名空间不展示；minecraft 由 init 单独放到列表首位。 */
+    private static boolean isHiddenNamespace(String id) {
+        return "minecraft".equals(id) || "java".equals(id) || "forge".equals(id)
+                || "fml".equals(id) || "mcp".equals(id) || id.startsWith("fabric");
     }
 
     @Override
