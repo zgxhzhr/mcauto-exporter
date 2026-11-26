@@ -133,8 +133,8 @@ public final class RegistryScanner {
                 }
                 t.flowingTexture = Services.PLATFORM.fluidFlowingTexture(fluid);
                 t.fluidColor = Services.PLATFORM.fluidTint(fluid);
-                if (t.fluidColor < 0 && fluid == Fluids.WATER) {
-                    // 原版水靠群系着色，无状态接口取不到，用默认水色
+                if (fluid == Fluids.WATER && (t.fluidColor < 0 || (t.fluidColor & 0xFFFFFF) == 0xFFFFFF)) {
+                    // 原版水靠群系着色，无状态接口常返回白色或未知，用默认水色
                     t.fluidColor = 0xFF3F76E4;
                 }
                 out.add(t);
