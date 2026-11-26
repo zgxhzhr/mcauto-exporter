@@ -20,8 +20,9 @@ import java.util.Map;
 
 /**
  * 按命名空间分目录输出 LMS 兼容 JSONL：&lt;ns&gt;/&lt;ns&gt;_items.json、&lt;ns&gt;/&lt;ns&gt;_entities.json。
- * 效果为本仓库扩展，写入 &lt;ns&gt;/&lt;ns&gt;_effects.json；另输出合并文件 &lt;ns&gt;/&lt;ns&gt;_all.json，
- * 包含该命名空间下全部条目，每条附加 kind 字段（item / entity / effect）。
+ * 效果与流体为本仓库扩展，写入 &lt;ns&gt;/&lt;ns&gt;_effects.json、&lt;ns&gt;/&lt;ns&gt;_fluids.json；
+ * 另输出合并文件 &lt;ns&gt;/&lt;ns&gt;_all.json，包含该命名空间下全部条目，每条附加 kind 字段
+ * （item / entity / effect / fluid）。
  */
 public final class LmsWriter {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -33,11 +34,13 @@ public final class LmsWriter {
         Map<String, List<Target>> items = new LinkedHashMap<>();
         Map<String, List<Target>> entities = new LinkedHashMap<>();
         Map<String, List<Target>> effects = new LinkedHashMap<>();
+        Map<String, List<Target>> fluids = new LinkedHashMap<>();
         for (Target target : targets) {
             switch (target.kind) {
                 case ITEM -> items.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
                 case ENTITY -> entities.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
                 case EFFECT -> effects.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
+                case FLUID -> fluids.computeIfAbsent(target.namespace(), k -> new ArrayList<>()).add(target);
             }
         }
         for (var entry : items.entrySet()) {
@@ -61,14 +64,22 @@ public final class LmsWriter {
                     .forEach(t -> lines.add(effectJson(t, includeIcons, neutralAs)));
             writeJsonl(root.resolve(entry.getKey()).resolve(entry.getKey() + "_effects.json"), lines);
         }
-        // 合并文件：物品 → 实体 → 效果依次排列，每条补 kind 字段
+        for (var entry : fluids.entrySet()) {
+            List<JsonObject> lines = new ArrayList<>();
+            entry.getValue().stream()
+                    .sorted(Comparator.comparing(t -> t.id.toString()))
+                    .forEach(t -> lines.add(fluidJson(t, includeIcons)));
+            writeJsonl(root.resolve(entry.getKey()).resolve(entry.getKey() + "_fluids.json"), lines);
+        }
+        // 合并文件：物品 → 实体 → 效果 → 流体依次排列，每条补 kind 字段
         var namespaces = new java.util.TreeSet<String>();
         namespaces.addAll(items.keySet());
         namespaces.addAll(entities.keySet());
         namespaces.addAll(effects.keySet());
+        namespaces.addAll(fluids.keySet());
         for (String ns : namespaces) {
             List<JsonObject> lines = new ArrayList<>();
-            for (Map<String, List<Target>> group : List.of(items, entities, effects)) {
+            for (Map<String, List<Target>> group : List.of(items, entities, effects, fluids)) {
                 group.getOrDefault(ns, List.of()).stream()
                         .sorted(Comparator.comparing(t -> t.id.toString()))
                         .forEach(t -> lines.add(mergedJson(t, includeIcons, neutralAs)));
@@ -82,6 +93,7 @@ public final class LmsWriter {
             case ITEM -> itemJson(t, includeIcons);
             case ENTITY -> entityJson(t, includeIcons);
             case EFFECT -> effectJson(t, includeIcons, neutralAs);
+            case FLUID -> fluidJson(t, includeIcons);
         };
         o.addProperty("kind", t.kind.name().toLowerCase(java.util.Locale.ROOT));
         return o;
@@ -149,6 +161,29 @@ public final class LmsWriter {
         return o;
     }
 
+    /** 流体：名字、着色、桶与静止贴图，主图标优先立方体，平面图另存一份。 */
+    private static JsonObject fluidJson(Target t, boolean includeIcons) {
+        JsonObject o = new JsonObject();
+        o.addProperty("name", displayName(t));
+        o.addProperty("Englishname", t.nameEn);
+        o.addProperty("mod", t.namespace());
+        o.addProperty("registerName", t.id.toString());
+        o.addProperty("color", t.fluidColor);
+        o.addProperty("bucket", t.bucket.isEmpty()
+                ? "" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(t.bucket.getItem()).toString());
+        o.addProperty("stillTexture", t.stillTexture == null ? "" : t.stillTexture.toString());
+        o.addProperty("flowingTexture", t.flowingTexture == null ? "" : t.flowingTexture.toString());
+        o.addProperty("Icon", base64(t, 128, includeIcons));
+        o.addProperty("IconSmall", base64(t, 32, includeIcons));
+        o.addProperty("iconSource", t.icons.isEmpty() ? "" : t.fluidIconSource);
+        o.addProperty("iconMode", "nearest");
+        // 平面图标（静止贴图/桶）也保留一份
+        o.addProperty("IconStill", stillBase64(t, 128, includeIcons));
+        o.addProperty("IconStillSmall", stillBase64(t, 32, includeIcons));
+        o.addProperty("stillIconSource", t.stillIcons.isEmpty() ? "" : t.fluidStillIconSource);
+        return o;
+    }
+
     /** 优先中文名，缺失时回退英文名，避免只有 en_us 的模组导出空 name。 */
     private static String displayName(Target t) {
         return t.nameZh.isEmpty() ? t.nameEn : t.nameZh;
@@ -159,6 +194,14 @@ public final class LmsWriter {
             return "";
         }
         var image = t.icons.get(size);
+        return image == null ? "" : ImageUtil.base64(image);
+    }
+
+    private static String stillBase64(Target t, int size, boolean includeIcons) {
+        if (!includeIcons) {
+            return "";
+        }
+        var image = t.stillIcons.get(size);
         return image == null ? "" : ImageUtil.base64(image);
     }
 

@@ -50,6 +50,7 @@ public final class AutoExport {
             request.kinds.add(Target.Kind.ITEM);
             request.kinds.add(Target.Kind.ENTITY);
             request.kinds.add(Target.Kind.EFFECT);
+            request.kinds.add(Target.Kind.FLUID);
             request.sizes.add(32);
             request.sizes.add(128);
             String error = ExportService.get().start(request);

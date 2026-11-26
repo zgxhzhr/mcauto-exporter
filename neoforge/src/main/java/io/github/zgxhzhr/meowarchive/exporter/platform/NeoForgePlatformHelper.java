@@ -1,6 +1,7 @@
 package io.github.zgxhzhr.meowarchive.exporter.platform;
 
 import io.github.zgxhzhr.meowarchive.exporter.platform.services.IPlatformHelper;
+import net.minecraft.world.level.material.Fluid;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
@@ -38,5 +39,15 @@ public class NeoForgePlatformHelper implements IPlatformHelper {
     @Override
     public boolean isDevelopmentEnvironment() {
         return !FMLEnvironment.isProduction();
+    }
+
+    /** NeoForge 把流体信息挂在 FluidType 上，比原版多一层。 */
+    @Override
+    public String fluidTranslationKey(Fluid fluid) {
+        try {
+            return fluid.getFluidType().getDescriptionId();
+        } catch (Throwable e) {
+            return "";
+        }
     }
 }

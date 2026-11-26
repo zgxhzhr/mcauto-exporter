@@ -3,6 +3,7 @@ package io.github.zgxhzhr.meowarchive.exporter.scan;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.core.ExportRequest;
 import io.github.zgxhzhr.meowarchive.exporter.core.Target;
+import io.github.zgxhzhr.meowarchive.exporter.platform.Services;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.ClientLanguage;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -11,6 +12,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -18,6 +20,8 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -77,11 +81,15 @@ public final class RegistryScanner {
                 }
                 Target t = Target.entity(id, type);
                 fillNames(t, lang, type.getDescriptionId());
-                if (t.nameZh.isBlank() && t.nameEn.isBlank()) {
-                    // 技术性实体（无中文也无英文名），不参与导出
+                t.entityCategory = type.getCategory().name();
+                if (t.nameZh.isBlank() && t.nameEn.isBlank() && type.getCategory() == MobCategory.MISC) {
+                    // 只跳过「无名字 + MISC」的技术性实体（投射物、辅助实体）。
+                    // 无名字但属于 CREATURE/AMBIENT 等类别的是真生物，模组漏写实体翻译很常见，
+                    // 必须照常导出，名字回退为注册名。
+                    ExporterLog.LOG.info("跳过技术性实体（无名字 + MISC）：{}", id);
                     continue;
                 }
-                t.entityCategory = type.getCategory().name();
+                fillFallbackName(t);
                 t.width = type.getDimensions().width();
                 t.height = type.getDimensions().height();
                 try {
@@ -103,7 +111,98 @@ public final class RegistryScanner {
                 out.add(t);
             }
         }
+        if (request.kinds.contains(Target.Kind.FLUID)) {
+            for (Fluid fluid : BuiltInRegistries.FLUID) {
+                Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+                if (fluid == Fluids.EMPTY || !request.namespaces.contains(id.getNamespace())) {
+                    continue;
+                }
+                // 流体注册表里 source 与 flowing 各一条，只导出 source
+                if (!fluid.isSource(fluid.defaultFluidState())) {
+                    continue;
+                }
+                Target t = Target.fluid(id, fluid);
+                fillFluidNames(t, lang, id);
+                Item bucket = fluid.getBucket();
+                if (bucket != Items.AIR) {
+                    t.bucket = new ItemStack(bucket);
+                }
+                t.stillTexture = Services.PLATFORM.fluidStillTexture(fluid);
+                if (t.stillTexture == null) {
+                    t.stillTexture = guessStillTexture(fluid);
+                }
+                t.flowingTexture = Services.PLATFORM.fluidFlowingTexture(fluid);
+                t.fluidColor = Services.PLATFORM.fluidTint(fluid);
+                if (t.fluidColor < 0 && fluid == Fluids.WATER) {
+                    // 原版水靠群系着色，无状态接口取不到，用默认水色
+                    t.fluidColor = 0xFF3F76E4;
+                }
+                out.add(t);
+            }
+        }
         return out;
+    }
+
+    /** 流体没有统一的 descriptionId：依次试 fluid_type / fluid / block / 桶物品，最后用注册名转写。 */
+    private static void fillFluidNames(Target t, LanguagePair lang, Identifier id) {
+        String fromPlatform = Services.PLATFORM.fluidTranslationKey(t.fluid);
+        String[] candidates = {
+                fromPlatform,
+                "fluid." + id.getNamespace() + "." + id.getPath(),
+                "block." + id.getNamespace() + "." + id.getPath(),
+                "item." + id.getNamespace() + "." + id.getPath() + "_bucket",
+                "item." + id.getNamespace() + "." + id.getPath(),
+        };
+        for (String key : candidates) {
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            if (t.nameZh.isBlank()) {
+                t.nameZh = resolve(lang.zh, key);
+            }
+            if (t.nameEn.isBlank()) {
+                t.nameEn = resolve(lang.en, key);
+            }
+            if (!t.nameZh.isBlank() && !t.nameEn.isBlank()) {
+                break;
+            }
+        }
+        fillFallbackName(t);
+    }
+
+    /** 模组漏写翻译时用注册名转写英文名，避免 JSON 里名称双空。 */
+    private static void fillFallbackName(Target t) {
+        if (!t.nameEn.isBlank()) {
+            return;
+        }
+        if (!t.nameZh.isBlank()) {
+            t.nameEn = t.nameZh;
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String part : t.id.getPath().split("_")) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        t.nameEn = sb.toString();
+    }
+
+    /** 无平台接口时按原版命名习惯猜静止贴图。 */
+    private static Identifier guessStillTexture(Fluid fluid) {
+        Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+        for (String dir : new String[]{"block", "fluid"}) {
+            Identifier candidate = Identifier.fromNamespaceAndPath(
+                    id.getNamespace(), "textures/" + dir + "/" + id.getPath() + "_still.png");
+            if (!Minecraft.getInstance().getResourceManager().getResourceStack(candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static void fillNames(Target t, LanguagePair lang, String descId) {

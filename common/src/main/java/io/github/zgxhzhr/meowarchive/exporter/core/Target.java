@@ -4,6 +4,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.material.Fluid;
 
 import java.awt.image.BufferedImage;
 import java.util.LinkedHashMap;
@@ -11,7 +12,7 @@ import java.util.Map;
 
 public final class Target {
     public enum Kind {
-        ITEM("items"), ENTITY("entities"), EFFECT("effects");
+        ITEM("items"), ENTITY("entities"), EFFECT("effects"), FLUID("fluids");
 
         public final String key;
 
@@ -25,6 +26,7 @@ public final class Target {
     public final ItemStack stack;
     public final EntityType<?> entityType;
     public final MobEffect effect;
+    public final Fluid fluid;
     public final Map<Integer, BufferedImage> icons = new LinkedHashMap<>();
     public String nameZh = "";
     public String nameEn = "";
@@ -44,25 +46,45 @@ public final class Target {
     public boolean instant;
     public String effectCategory = "";
     public int expectedColorCount;
+    /** 流体：同流体的桶物品，取不到时为空栈。 */
+    public ItemStack bucket = ItemStack.EMPTY;
+    /** 流体：静止贴图，取不到时为 null。 */
+    public Identifier stillTexture;
+    /** 流体：输出着色（ARGB），-1 表示未知。 */
+    public int fluidColor = -1;
+    /** 流体：实际使用的图标来源（cube / texture / bucket / 空）。 */
+    public String fluidIconSource = "";
+    /** 流体：流动贴图（立方体侧面），取不到时为 null。 */
+    public Identifier flowingTexture;
+    /** 流体：平面图标（静止贴图/桶），保留给调用方。 */
+    public final Map<Integer, BufferedImage> stillIcons = new LinkedHashMap<>();
+    /** 流体：平面图标的来源（texture / bucket / 空）。 */
+    public String fluidStillIconSource = "";
 
-    private Target(Kind kind, Identifier id, ItemStack stack, EntityType<?> entityType, MobEffect effect) {
+    private Target(Kind kind, Identifier id, ItemStack stack, EntityType<?> entityType, MobEffect effect,
+                   Fluid fluid) {
         this.kind = kind;
         this.id = id;
         this.stack = stack;
         this.entityType = entityType;
         this.effect = effect;
+        this.fluid = fluid;
     }
 
     public static Target item(Identifier id, ItemStack stack) {
-        return new Target(Kind.ITEM, id, stack, null, null);
+        return new Target(Kind.ITEM, id, stack, null, null, null);
     }
 
     public static Target entity(Identifier id, EntityType<?> type) {
-        return new Target(Kind.ENTITY, id, null, type, null);
+        return new Target(Kind.ENTITY, id, null, type, null, null);
     }
 
     public static Target effect(Identifier id, MobEffect effect) {
-        return new Target(Kind.EFFECT, id, null, null, effect);
+        return new Target(Kind.EFFECT, id, null, null, effect, null);
+    }
+
+    public static Target fluid(Identifier id, Fluid fluid) {
+        return new Target(Kind.FLUID, id, null, null, null, fluid);
     }
 
     public String path() {

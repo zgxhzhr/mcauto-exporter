@@ -36,6 +36,7 @@ public final class ExporterScreen extends Screen {
     private boolean items = true;
     private boolean entities = true;
     private boolean effects = true;
+    private boolean fluids = true;
     private boolean size32 = true;
     private boolean size128 = true;
     private int scroll;
@@ -44,6 +45,7 @@ public final class ExporterScreen extends Screen {
     private WoodButton itemsButton;
     private WoodButton entitiesButton;
     private WoodButton effectsButton;
+    private WoodButton fluidsButton;
     private WoodButton size32Button;
     private WoodButton size128Button;
     private WoodButton startButton;
@@ -127,11 +129,16 @@ public final class ExporterScreen extends Screen {
             entities = !entities;
             entitiesButton.setChecked(entities);
         }).withCheckBox(entities));
-        effectsButton = addRenderableWidget(new WoodButton(rightX, y + 50, rightW, 20,
+        effectsButton = addRenderableWidget(new WoodButton(rightX, y + 50, half, 20,
                 Component.literal("效果"), () -> {
             effects = !effects;
             effectsButton.setChecked(effects);
         }).withCheckBox(effects));
+        fluidsButton = addRenderableWidget(new WoodButton(rightX + rightW - half, y + 50, half, 20,
+                Component.literal("流体"), () -> {
+            fluids = !fluids;
+            fluidsButton.setChecked(fluids);
+        }).withCheckBox(fluids));
 
         size32Button = addRenderableWidget(new WoodButton(rightX, y + 75, half, 20,
                 Component.literal("32×32"), () -> {
@@ -169,7 +176,7 @@ public final class ExporterScreen extends Screen {
             message = "至少选择一个命名空间";
             return;
         }
-        if (!items && !entities && !effects) {
+        if (!items && !entities && !effects && !fluids) {
             message = "至少选择一种类型";
             return;
         }
@@ -195,6 +202,9 @@ public final class ExporterScreen extends Screen {
         }
         if (effects) {
             request.kinds.add(Target.Kind.EFFECT);
+        }
+        if (fluids) {
+            request.kinds.add(Target.Kind.FLUID);
         }
         if (size32) {
             request.sizes.add(32);
@@ -223,6 +233,7 @@ public final class ExporterScreen extends Screen {
         BuiltInRegistries.ITEM.keySet().forEach(id -> out.add(id.getNamespace()));
         BuiltInRegistries.MOB_EFFECT.keySet().forEach(id -> out.add(id.getNamespace()));
         BuiltInRegistries.ENTITY_TYPE.keySet().forEach(id -> out.add(id.getNamespace()));
+        BuiltInRegistries.FLUID.keySet().forEach(id -> out.add(id.getNamespace()));
         return out;
     }
 
