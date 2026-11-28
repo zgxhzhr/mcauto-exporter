@@ -23,6 +23,7 @@ public final class ExporterConfig {
     public List<Integer> sizes = new ArrayList<>(Arrays.asList(32, 128));
     public String effectNeutral = "BUFF";
     public boolean embedIcons = true;
+    public boolean animatedIcons = true;
 
     public static ExporterConfig get() {
         if (instance == null) {
