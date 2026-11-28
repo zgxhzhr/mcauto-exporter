@@ -136,7 +136,7 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按出现顺序收集各层（贴图 + tint 去重），无 quad 时退回粒子图标。 */
+    /** 按出现顺序收集各层（贴图 + tint 去重），无 quad 或非平面模型时直接放弃。 */
     private static List<Layer> collectLayers(ItemStackRenderState state, Minecraft mc)
             throws IOException, IllegalAccessException {
         List<List<TextureAtlasSprite>> spriteGroups = new ArrayList<>();
@@ -152,6 +152,11 @@ public final class AnimatedIconRenderer {
             List<Integer> tints = new ArrayList<>();
             Set<String> seen = new LinkedHashSet<>();
             for (BakedQuad quad : model.getQuads(null, null, RandomSource.create())) {
+                if (quad.getDirection() != null) {
+                    // 带方向的 3D 面（桶、方块模型等）无法用平面贴图重建，
+                    // 强行按整张贴图叠会溢出轮廓，交给静态 PNG 渲染
+                    return List.of();
+                }
                 TextureAtlasSprite sprite = quad.getSprite();
                 int index = quad.getTintIndex();
                 String key = sprite.contents().name() + "#" + index;
@@ -161,8 +166,13 @@ public final class AnimatedIconRenderer {
                 }
             }
             if (sprites.isEmpty()) {
-                sprites.add(model.getParticleIcon());
-                tints.add(-1);
+                // 没有烘焙 quad（BEWLR / 内置模型，如各种桶）：只有粒子贴图可以读到，
+                // 而粒子贴图往往是桶内的流体，按整张叠出来就是一整块液体，直接放弃动画
+                return List.of();
+            }
+            if (sprites.size() > 1) {
+                // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
+                return List.of();
             }
             // 先用贴图自带帧数做廉价判断，避免给每个静态物品都解码 PNG/mcmeta
             for (TextureAtlasSprite sprite : sprites) {
