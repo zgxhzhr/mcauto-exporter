@@ -38,6 +38,7 @@ public final class EntityPreviewScreen extends Screen {
     private Entity posed;
     private int tab;
     private boolean dirty = true;
+    private int previewFailures;
     private boolean exportPending;
     private String message = "拖动右侧滑条调整，满意后点“导出 PNG”";
 
@@ -307,8 +308,7 @@ public final class EntityPreviewScreen extends Screen {
         graphics.fill(previewX, previewY, previewX + previewBox, previewY + previewBox,
                 MeowArchiveStyle.LIST_BG);
         graphics.renderOutline(previewX, previewY, previewBox, previewBox, 0x558B5A2B);
-        if (dirty) {
-            refreshPreview();
+        if (dirty && refreshPreview()) {
             dirty = false;
         }
         if (exportPending) {
@@ -342,18 +342,35 @@ public final class EntityPreviewScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void refreshPreview() {
+    /**
+     * 返回 true 表示这一轮刷新已经结束；返回 false 时保持 dirty，下一帧继续重试。
+     * 打开界面的第一帧离屏缓冲偶尔还没准备好，只试一次会让预览一直停在透明状态。
+     */
+    private boolean refreshPreview() {
+        // 上次连续失败已经放弃，这次是用户改了参数重新触发，给一轮新的重试预算
+        if (previewFailures >= 40) {
+            previewFailures = 0;
+        }
         Entity entity = currentEntity();
         if (entity == null) {
-            return;
+            return true;
         }
         BufferedImage image = EntityIconRenderer.render(entity, PREVIEW_TEX, cfg.options);
         if (image != null) {
             preview.update(image);
-        } else {
-            message = "预览渲染失败（详见日志）";
-            ExporterLog.LOG.warn("单实体预览渲染为空：{}", entity.getType());
+            previewFailures = 0;
+            message = "拖动右侧滑条调整，满意后点“导出 PNG”";
+            return true;
         }
+        if (++previewFailures == 1) {
+            ExporterLog.LOG.warn("单实体预览渲染为空，稍后重试：{}", entity.getType());
+        }
+        if (previewFailures >= 40) {
+            message = "预览渲染失败（详见日志）";
+            return true;
+        }
+        message = "预览渲染中…";
+        return false;
     }
 
     @Override
