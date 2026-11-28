@@ -25,6 +25,7 @@ public final class MeowArchiveExporterNeoForge {
         modBus.addListener(this::register);
         modBus.addListener(this::clientSetup);
         modBus.addListener(this::registerGuiLayers);
+        NeoForge.EVENT_BUS.addListener(this::clientTickPre);
         NeoForge.EVENT_BUS.addListener(this::clientTick);
         NeoForge.EVENT_BUS.addListener(this::registerClientCommands);
     }
@@ -39,6 +40,11 @@ public final class MeowArchiveExporterNeoForge {
     private void clientSetup(FMLClientSetupEvent event) {
         ExporterConfig.load();
         ExporterLog.LOG.info("Meow Archive Exporter ready (NeoForge)");
+    }
+
+    /** 必须早于原版处理选取方块，才能吞掉中键点击。 */
+    private void clientTickPre(ClientTickEvent.Pre event) {
+        SingleEntityPicker.tick();
     }
 
     private void clientTick(ClientTickEvent.Post event) {
@@ -57,6 +63,9 @@ public final class MeowArchiveExporterNeoForge {
         event.getDispatcher().register(Commands.literal("meowarchive").executes(context -> {
             Minecraft.getInstance().setScreen(new ExporterScreen());
             return 1;
-        }));
+        }).then(Commands.literal("entity").executes(context -> {
+            Minecraft.getInstance().execute(SingleEntityPicker::openForCrosshair);
+            return 1;
+        })));
     }
 }

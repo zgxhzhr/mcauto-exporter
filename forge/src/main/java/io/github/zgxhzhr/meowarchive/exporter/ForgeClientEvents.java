@@ -17,6 +17,7 @@ public final class ForgeClientEvents {
 
     public static void register(BusGroup bus) {
         FMLClientSetupEvent.getBus(bus).addListener(ForgeClientEvents::clientSetup);
+        TickEvent.ClientTickEvent.Pre.BUS.addListener(event -> SingleEntityPicker.tick());
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> {
             ExportService.get().tick();
             AutoExport.tick();
@@ -35,6 +36,9 @@ public final class ForgeClientEvents {
         event.getDispatcher().register(Commands.literal("meowarchive").executes(context -> {
             Minecraft.getInstance().setScreen(new ExporterScreen());
             return 1;
-        }));
+        }).then(Commands.literal("entity").executes(context -> {
+            Minecraft.getInstance().execute(SingleEntityPicker::openForCrosshair);
+            return 1;
+        })));
     }
 }
