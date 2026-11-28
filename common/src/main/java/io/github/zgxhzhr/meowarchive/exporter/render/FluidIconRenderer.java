@@ -33,7 +33,11 @@ public final class FluidIconRenderer {
         if (side == null) {
             side = top;
         }
+        return composeCube(top, side, size);
+    }
 
+    /** 用已经缩放、着色的顶面与侧面拼出等距立方体；动画版本逐帧复用。 */
+    public static BufferedImage composeCube(BufferedImage top, BufferedImage side, int size) {
         BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
@@ -131,7 +135,7 @@ public final class FluidIconRenderer {
      * 流体静止贴图多为动画长条（如 16x6400 = 400 帧，或横向 interlace），
      * 直接缩放会把所有帧压成条纹，这里只取第一帧。
      */
-    private static BufferedImage firstFrame(BufferedImage src) {
+    static BufferedImage firstFrame(BufferedImage src) {
         int w = src.getWidth();
         int h = src.getHeight();
         if (h > w && h % w == 0) {
@@ -147,7 +151,7 @@ public final class FluidIconRenderer {
      * 平台返回的静止贴图通常是「纹理 id」而非资源路径
      * （如 minecraft:block/water_still），需要补 textures/ 前缀与 .png 后缀才能读到。
      */
-    private static ResourceLocation[] candidates(ResourceLocation texture) {
+    static ResourceLocation[] candidates(ResourceLocation texture) {
         String path = texture.getPath();
         boolean isAssetPath = path.startsWith("textures/");
         ResourceLocation withPrefix = ResourceLocation.fromNamespaceAndPath(
@@ -159,7 +163,7 @@ public final class FluidIconRenderer {
     }
 
     /** 按流体着色做乘法，保留原贴图的明暗。 */
-    private static BufferedImage applyTint(BufferedImage image, int argb) {
+    static BufferedImage applyTint(BufferedImage image, int argb) {
         int tr = (argb >> 16) & 0xFF;
         int tg = (argb >> 8) & 0xFF;
         int tb = argb & 0xFF;
