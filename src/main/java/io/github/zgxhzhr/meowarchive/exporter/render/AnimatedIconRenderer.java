@@ -89,7 +89,7 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按渲染层顺序收集（贴图 + pass 去重），无图标时退回 getIconIndex。 */
+    /** 按渲染层顺序收集（贴图 + pass 去重）；无图标或多贴图时放弃动画。 */
     private static List<Layer> collectLayers(ItemStack stack, Minecraft mc) throws IOException {
         Item item = stack.getItem();
         int passes = Math.max(1, item.getRenderPasses(stack.getItemDamage()));
@@ -115,12 +115,13 @@ public final class AnimatedIconRenderer {
             }
         }
         if (icons.isEmpty()) {
-            IIcon fallback = stack.getIconIndex();
-            if (fallback == null || fallback.getIconName() == null || fallback.getIconName().isEmpty()) {
-                return Collections.emptyList();
-            }
-            icons.add(fallback);
-            tints.add(-1);
+            // 没有可读图标（自定义渲染/动态流体层等）：退回 getIconIndex 往往只能拿到流体贴图，
+            // 按整张叠出来就是一整块液体，直接放弃动画
+            return Collections.emptyList();
+        }
+        if (icons.size() > 1) {
+            // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
+            return Collections.emptyList();
         }
 
         int spriteNumber = item.getSpriteNumber();
