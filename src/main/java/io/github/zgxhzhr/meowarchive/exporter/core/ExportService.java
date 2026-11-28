@@ -6,12 +6,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
+import io.github.zgxhzhr.meowarchive.exporter.render.AnimatedIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.EffectIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.EntityIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import io.github.zgxhzhr.meowarchive.exporter.render.ItemIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.scan.RegistryScanner;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.model.IBakedModel;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -141,6 +143,10 @@ public final class ExportService {
             }
         }
         for (int size : request.sizes) {
+            if (target.kind == Target.Kind.ITEM) {
+                // 平面动画物品额外导出 GIF，静态 PNG 仍保留作兜底
+                exportAnimated(target, size);
+            }
             if (target.icons.containsKey(size)) {
                 continue;
             }
@@ -226,6 +232,43 @@ public final class ExportService {
         } catch (IOException e) {
             failures.putIfAbsent(target.uid(), "写图失败：" + e.getMessage());
             log.add("写图失败：" + target.uid() + "：" + e.getMessage());
+            return false;
+        }
+    }
+
+    /** 平面动画物品：合成 GIF 落盘并缓存字节，供 JSON / 预览页直接内嵌。 */
+    private void exportAnimated(Target target, int size) {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            IBakedModel model = mc.getItemRenderer().getModelWithOverrides(target.stack, mc.world, mc.player);
+            if (model.isGui3d()) {
+                return;
+            }
+            AnimatedIconRenderer.AnimatedIcon icon = AnimatedIconRenderer.render(target.stack, size);
+            if (icon == null) {
+                return;
+            }
+            byte[] gif = ImageUtil.gif(icon.frames, icon.delaysMillis);
+            if (writeGif(target, size, gif)) {
+                target.animatedGifs.put(size, gif);
+                log.add("动图 " + target.uid() + " @" + size + "：" + icon.frames.size() + " 帧");
+            }
+        } catch (Throwable t) {
+            ExporterLog.LOG.warn("GIF 导出失败: {}", target.uid(), t);
+        }
+    }
+
+    private boolean writeGif(Target target, int size, byte[] gif) {
+        try {
+            Path dir = output.resolve(target.namespace()).resolve("icons");
+            Files.createDirectories(dir);
+            // 变体要带后缀，否则同注册名的条目会互相覆盖图标
+            Path file = dir.resolve(target.path() + target.variantSuffix() + "_" + size + ".gif");
+            Files.write(file, gif);
+            return true;
+        } catch (IOException e) {
+            failures.putIfAbsent(target.uid(), "写 GIF 失败：" + e.getMessage());
+            log.add("写 GIF 失败：" + target.uid() + "：" + e.getMessage());
             return false;
         }
     }
