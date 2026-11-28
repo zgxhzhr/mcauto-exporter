@@ -26,6 +26,7 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
                 .icon(() -> new ItemStack(ModItems.MIAO_WU_JI))
                 .appendItems(stacks -> stacks.add(new ItemStack(ModItems.MIAO_WU_JI)))
                 .build();
+        ClientTickEvents.START_CLIENT_TICK.register(client -> SingleEntityPicker.tick());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ExportService.get().tick();
             AutoExport.tick();
