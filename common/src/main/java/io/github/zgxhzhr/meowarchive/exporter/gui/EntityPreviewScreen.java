@@ -40,6 +40,7 @@ public final class EntityPreviewScreen extends Screen {
     private Entity posed;
     private int tab;
     private boolean dirty = true;
+    private int previewFailures;
     private boolean exportPending;
     private volatile boolean renderPending;
     private volatile BufferedImage pendingImage;
@@ -316,7 +317,6 @@ public final class EntityPreviewScreen extends Screen {
         }
         if (dirty) {
             refreshPreview();
-            dirty = false;
         }
         if (exportPending) {
             exportPending = false;
@@ -352,15 +352,26 @@ public final class EntityPreviewScreen extends Screen {
         if (renderPending) {
             return;
         }
+        // 上一次连续失败已经放弃，这次是用户改了参数重新触发，给一轮新的重试预算
+        if (previewFailures >= 40) {
+            previewFailures = 0;
+        }
         Entity entity = currentEntity();
         if (entity == null) {
+            dirty = false;
             return;
         }
+        dirty = false;
         renderPending = true;
         EntityIconRenderer.renderAsync(entity, PREVIEW_TEX, cfg.options, image -> {
             renderPending = false;
             if (image != null) {
                 pendingImage = image;
+                previewFailures = 0;
+            } else if (++previewFailures < 40) {
+                // 打开界面的第一帧离屏缓冲偶尔还没准备好，下一帧再试，避免预览一直停在透明状态
+                message = "预览渲染中…";
+                dirty = true;
             } else {
                 message = "预览渲染失败（详见日志）";
                 ExporterLog.LOG.warn("单实体预览渲染为空：{}", entity.getType());
