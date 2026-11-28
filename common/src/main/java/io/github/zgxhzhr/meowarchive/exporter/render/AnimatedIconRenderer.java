@@ -7,10 +7,8 @@ import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
-import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
@@ -83,13 +81,18 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按出现顺序收集各层（贴图 + tintIndex 去重），无 quad 时退回粒子图标。 */
+    /** 按出现顺序收集各层（贴图 + tintIndex 去重）；遇到 3D 面、多贴图或无 quad 一律放弃。 */
     private static List<Layer> collectLayers(ItemStackRenderState state, Minecraft mc) throws IOException {
         List<TextureAtlasSprite> sprites = new ArrayList<>();
         List<Integer> tints = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Object layer : layers(state)) {
             for (BakedQuad quad : quads(layer)) {
+                if (quad.direction() != null) {
+                    // 带方向的 3D 面（桶、方块模型等）无法用平面贴图重建，
+                    // 强行按整张贴图叠会溢出轮廓，交给静态 PNG 渲染
+                    return List.of();
+                }
                 TextureAtlasSprite sprite = quad.materialInfo().sprite();
                 int tintIndex = quad.materialInfo().tintIndex();
                 String key = sprite.contents().name() + "#" + tintIndex;
@@ -100,11 +103,13 @@ public final class AnimatedIconRenderer {
             }
         }
         if (sprites.isEmpty()) {
-            Material.Baked particle = state.pickParticleMaterial(RandomSource.create());
-            if (particle != null) {
-                sprites.add(particle.sprite());
-                tints.add(-1);
-            }
+            // 没有烘焙 quad（BEWLR / 内置模型，如各种桶）：只有粒子贴图可以读到，
+            // 而粒子贴图往往是桶内的流体，按整张叠出来就是一整块液体，直接放弃动画
+            return List.of();
+        }
+        if (sprites.size() > 1) {
+            // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
+            return List.of();
         }
         // 先用贴图自带帧数做廉价判断，避免给每个静态物品都解码 PNG/mcmeta
         boolean animated = false;
