@@ -21,6 +21,7 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
     @Override
     public void onInitializeClient() {
         ExporterConfig.load();
+        ClientTickEvents.START_CLIENT_TICK.register(client -> SingleEntityPicker.tick());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ExportService.get().tick();
             AutoExport.tick();
