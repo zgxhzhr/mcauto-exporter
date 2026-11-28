@@ -239,6 +239,9 @@ public final class ExportService {
 
     /** 平面动画物品：合成 GIF 落盘并缓存字节，供 JSON / 预览页直接内嵌。 */
     private void exportAnimated(Target target, int size) {
+        if (!ExporterConfig.get().animatedIcons) {
+            return;
+        }
         try {
             AnimatedIconRenderer.AnimatedIcon icon = AnimatedIconRenderer.render(target.stack, size);
             if (icon == null) {
