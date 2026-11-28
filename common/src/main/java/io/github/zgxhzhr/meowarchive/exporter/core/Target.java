@@ -28,6 +28,8 @@ public final class Target {
     public final MobEffect effect;
     public final Fluid fluid;
     public final Map<Integer, BufferedImage> icons = new LinkedHashMap<>();
+    /** 物品 / 流体：平面动画模型导出的 GIF 字节，按图标尺寸存放。 */
+    public final Map<Integer, byte[]> animatedGifs = new LinkedHashMap<>();
     public String nameZh = "";
     public String nameEn = "";
     public String creativeTab = "未知";

@@ -115,7 +115,7 @@ public final class PreviewWriter {
 
     private static String card(Target t) {
         String kind = t.kind.name().toLowerCase(Locale.ROOT);
-        String img = icon(t);
+        Icon img = icon(t);
         StringBuilder badges = new StringBuilder();
         if (t.kind == Target.Kind.ENTITY && t.noVisual) {
             badges.append("<span class=\"badge warn\">无可见模型</span>");
@@ -123,9 +123,9 @@ public final class PreviewWriter {
         if (t.suspect) {
             badges.append("<span class=\"badge warn\">可疑</span>");
         }
-        String thumb = img.isEmpty()
+        String thumb = img == null
                 ? "<div class=\"noicon\">无图标</div>"
-                : "<img src=\"data:image/png;base64," + img + "\" alt=\"\">";
+                : "<img src=\"data:image/" + img.mime() + ";base64," + img.base64() + "\" alt=\"\">";
         String meta = meta(t);
         String search = (t.nameZh + " " + t.nameEn + " " + t.id).toLowerCase(Locale.ROOT);
         return """
@@ -183,8 +183,8 @@ public final class PreviewWriter {
                 o.addProperty("maxDurability", t.stack.getMaxDamage());
                 o.addProperty("CreativeTabName", t.creativeTab);
                 o.addProperty("OredictList", t.tags);
-                o.addProperty("smallIcon", folded(t, 32));
-                o.addProperty("largeIcon", folded(t, 128));
+                o.addProperty("smallIcon", foldedItemIcon(t, 32));
+                o.addProperty("largeIcon", foldedItemIcon(t, 128));
             }
             case ENTITY -> {
                 o.addProperty("Icon", folded(t, 128));
@@ -237,6 +237,15 @@ public final class PreviewWriter {
         return "<base64 " + ImageUtil.base64(image).length() + " chars>";
     }
 
+    /** 物品图标字段：有 GIF 时标注 gif 长度，否则沿用 PNG 折叠说明。 */
+    private static String foldedItemIcon(Target t, int size) {
+        byte[] gif = t.animatedGifs.get(size);
+        if (gif != null) {
+            return "<gif " + (4 * ((gif.length + 2) / 3)) + " chars>";
+        }
+        return folded(t, size);
+    }
+
     private static String foldedStill(Target t, int size) {
         var image = t.stillIcons.get(size);
         if (image == null) {
@@ -252,12 +261,23 @@ public final class PreviewWriter {
         return t.nameEn.isEmpty() ? t.id.toString() : t.nameEn;
     }
 
-    private static String icon(Target t) {
+    /** 图标：GIF 优先（128 → 32），否则回退 PNG。 */
+    private static Icon icon(Target t) {
+        byte[] gif = t.animatedGifs.get(128);
+        if (gif == null) {
+            gif = t.animatedGifs.get(32);
+        }
+        if (gif != null) {
+            return new Icon("gif", ImageUtil.base64Gif(gif));
+        }
         var image = t.icons.get(128);
         if (image == null) {
             image = t.icons.get(32);
         }
-        return image == null ? "" : ImageUtil.base64(image);
+        return image == null ? null : new Icon("png", ImageUtil.base64(image));
+    }
+
+    private record Icon(String mime, String base64) {
     }
 
     private static String esc(String s) {
