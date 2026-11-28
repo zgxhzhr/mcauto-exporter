@@ -142,8 +142,8 @@ public final class LmsWriter {
         o.addProperty("maxDurability", t.stack.getMaxDamage());
         o.addProperty("CreativeTabName", t.creativeTab);
         o.addProperty("OredictList", t.tags);
-        o.addProperty("smallIcon", base64(t, 32, includeIcons));
-        o.addProperty("largeIcon", base64(t, 128, includeIcons));
+        o.addProperty("smallIcon", itemIcon(t, 32, includeIcons));
+        o.addProperty("largeIcon", itemIcon(t, 128, includeIcons));
         return o;
     }
 
@@ -200,6 +200,18 @@ public final class LmsWriter {
     /** 优先中文名，缺失时回退英文名，避免只有 en_us 的模组导出空 name。 */
     private static String displayName(Target t) {
         return t.nameZh.isEmpty() ? t.nameEn : t.nameZh;
+    }
+
+    /** 物品图标：动画物品优先输出 GIF 裸 base64，其余维持 PNG。 */
+    private static String itemIcon(Target t, int size, boolean includeIcons) {
+        if (!includeIcons) {
+            return "";
+        }
+        byte[] gif = t.animatedGifs.get(size);
+        if (gif != null) {
+            return ImageUtil.base64Gif(gif);
+        }
+        return base64(t, size, true);
     }
 
     private static String base64(Target t, int size, boolean includeIcons) {
