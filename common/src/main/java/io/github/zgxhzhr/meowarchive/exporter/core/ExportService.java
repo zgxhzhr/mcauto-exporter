@@ -240,6 +240,9 @@ public final class ExportService {
 
     /** 平面动画物品：合成 GIF 落盘并缓存字节，供 JSON / 预览页直接内嵌。 */
     private void exportAnimated(Target target, int size) {
+        if (!ExporterConfig.get().animatedIcons) {
+            return;
+        }
         try {
             Minecraft mc = Minecraft.getInstance();
             var model = mc.getItemRenderer().getModel(target.stack, mc.level, mc.player, 0);
@@ -262,6 +265,9 @@ public final class ExportService {
 
     /** 动画流体：逐帧合成 still + flowing 的立体图标并写 GIF。 */
     private void exportFluidAnimated(Target target, int size) {
+        if (!ExporterConfig.get().animatedIcons) {
+            return;
+        }
         try {
             AnimatedIconRenderer.AnimatedIcon icon = FluidCubeAnimator.render(target, size);
             if (icon == null) {
