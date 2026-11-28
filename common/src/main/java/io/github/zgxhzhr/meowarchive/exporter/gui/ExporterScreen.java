@@ -373,7 +373,7 @@ public final class ExporterScreen extends Screen {
             line = service.lastResult();
             color = MeowArchiveStyle.ACCENT;
         } else {
-            line = "就绪";
+            line = "就绪 · 手持喵呜机中键点击实体可单独渲染";
             color = MeowArchiveStyle.SUBTEXT_COLOR;
         }
         graphics.drawString(font, MeowArchiveStyle.clamp(font, line, contentRight - contentLeft),
