@@ -36,7 +36,10 @@ def transformCommon = tasks.register('transformCommonSources') {
         fileTree('../common/src/main/java') { include '**/*.java' }.each { src ->
             def rel = srcRoot.relativize(src.toPath()).toString()
             def text = src.getText('UTF-8')
-            fqn.each { pair -> text = text.replace(pair[0], pair[1]) }
+            // 全名替换也要卡边界：否则 TextureAtlas 会误伤 TextureAtlasSprite
+            fqn.each { pair ->
+                text = text.replaceAll('(?<![A-Za-z0-9_.])' + java.util.regex.Pattern.quote(pair[0]) + '(?![A-Za-z0-9_])', pair[1])
+            }
             simple.each { pair ->
                 text = text.replaceAll('(?<![A-Za-z0-9_])' + java.util.regex.Pattern.quote(pair[0]) + '(?![A-Za-z0-9_])', pair[1])
             }
