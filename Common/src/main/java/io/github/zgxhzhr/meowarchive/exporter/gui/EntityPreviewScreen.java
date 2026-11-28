@@ -1,0 +1,410 @@
+package io.github.zgxhzhr.meowarchive.exporter.gui;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
+import io.github.zgxhzhr.meowarchive.exporter.core.SingleEntityConfig;
+import io.github.zgxhzhr.meowarchive.exporter.core.SingleEntityExporter;
+import io.github.zgxhzhr.meowarchive.exporter.render.EntityIconRenderer;
+import io.github.zgxhzhr.meowarchive.exporter.render.EntityRenderOptions;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+
+import java.awt.image.BufferedImage;
+import java.util.Locale;
+
+/**
+ * 单实体渲染界面：左边实时预览，右边分页提供视角/外观/导出配置，底部一键出图。
+ *
+ * <p>入口：手持喵呜机中键点中实体；也可以用 /meowarchive entity 对准实体打开。
+ */
+public final class EntityPreviewScreen extends Screen {
+    private static final int PAD = 12;
+    private static final int ROW_STEP = 24;
+    private static final int PREVIEW_TEX = 256;
+    private static final String[] TABS = {"视角", "外观", "导出"};
+    private static final int[] SIZES = {32, 128, 256, 512};
+
+    private final Entity live;
+    private final EntityType<?> type;
+    private final Component entityName;
+    private final SingleEntityConfig cfg;
+    private final PreviewTexture preview = new PreviewTexture();
+
+    private Entity posed;
+    private int tab;
+    private boolean dirty = true;
+    private boolean exportPending;
+    private String message = "拖动右侧滑条调整，满意后点“导出 PNG”";
+
+    private WoodSlider offsetXSlider;
+    private WoodSlider offsetYSlider;
+    private boolean draggingPreview;
+    private double dragStartX;
+    private double dragStartY;
+    private float dragStartOffsetX;
+    private float dragStartOffsetY;
+
+    private int panelX;
+    private int panelY;
+    private int panelW;
+    private int panelH;
+    private int previewX;
+    private int previewY;
+    private int previewBox;
+    private int rightX;
+    private int rightW;
+    private int tabsY;
+    private int contentTop;
+    private int statusY;
+    private int actionY;
+
+    public EntityPreviewScreen(Entity source) {
+        super(Component.literal("实体单独渲染"));
+        this.live = source;
+        this.type = source.getType();
+        this.entityName = source.getDisplayName();
+        this.cfg = SingleEntityConfig.get();
+    }
+
+    @Override
+    protected void init() {
+        panelW = Math.min(620, Math.max(280, width - 20));
+        panelH = Math.min(330, Math.max(190, height - 20));
+        panelX = (width - panelW) / 2;
+        panelY = (height - panelH) / 2;
+
+        previewBox = Math.max(84, Math.min(200, Math.min(panelH - 96, (int) (panelW * 0.38F))));
+        previewX = panelX + PAD;
+        previewY = panelY + 30;
+
+        rightX = previewX + previewBox + 14;
+        rightW = Math.max(120, panelX + panelW - PAD - rightX);
+        tabsY = panelY + 30;
+        contentTop = tabsY + 24;
+        statusY = panelY + panelH - 42;
+        actionY = panelY + panelH - 24;
+
+        buildWidgets();
+        dirty = true;
+    }
+
+    private void buildWidgets() {
+        clearWidgets();
+        offsetXSlider = null;
+        offsetYSlider = null;
+
+        int tabW = (rightW - 8) / 3;
+        for (int i = 0; i < TABS.length; i++) {
+            int index = i;
+            String label = (tab == i ? "▸ " : "") + TABS[i];
+            addRenderableWidget(new WoodButton(rightX + i * (tabW + 4), tabsY, tabW, 18,
+                    Component.literal(label), () -> {
+                tab = index;
+                buildWidgets();
+            }));
+        }
+
+        int y = contentTop;
+        if (tab == 0) {
+            addRowSlider(y, "水平角度", -180.0F, 180.0F,
+                    cfg.options.yaw == null ? 30.0F : cfg.options.yaw,
+                    v -> String.format(Locale.ROOT, "%.0f°", v),
+                    v -> cfg.options.yaw = v);
+            y += ROW_STEP;
+            addRowSlider(y, "头部角度", -180.0F, 180.0F,
+                    cfg.options.headYaw == null
+                            ? (cfg.options.yaw == null ? 30.0F : cfg.options.yaw)
+                            : cfg.options.headYaw,
+                    v -> String.format(Locale.ROOT, "%.0f°", v),
+                    v -> cfg.options.headYaw = v);
+            y += ROW_STEP;
+            addRowSlider(y, "俯仰", -60.0F, 60.0F, cfg.options.pitch,
+                    v -> String.format(Locale.ROOT, "%.0f°", v),
+                    v -> cfg.options.pitch = v);
+            y += ROW_STEP;
+            addRowSlider(y, "缩放", 0.4F, 2.5F, cfg.options.zoom,
+                    v -> String.format(Locale.ROOT, "%.2fx", v),
+                    v -> cfg.options.zoom = v);
+            y += ROW_STEP;
+            offsetXSlider = addRowSlider(y, "横向偏移", -0.4F, 0.4F, cfg.options.offsetX,
+                    v -> String.format(Locale.ROOT, "%+.2f", v),
+                    v -> cfg.options.offsetX = v);
+            y += ROW_STEP;
+            offsetYSlider = addRowSlider(y, "纵向偏移", -0.4F, 0.4F, cfg.options.offsetY,
+                    v -> String.format(Locale.ROOT, "%+.2f", v),
+                    v -> cfg.options.offsetY = v);
+        } else if (tab == 1) {
+            addRowSlider(y, "亮度", 0.3F, 1.6F, cfg.options.brightness,
+                    v -> String.format(Locale.ROOT, "%.2fx", v),
+                    v -> cfg.options.brightness = v);
+            y += ROW_STEP;
+            addRowSlider(y, "姿态帧", 0.0F, 80.0F, cfg.options.tick,
+                    v -> String.format(Locale.ROOT, "%.0f", v),
+                    v -> cfg.options.tick = Math.round(v));
+            y += ROW_STEP;
+            addToggle(y, "脚下阴影", cfg.options.shadow, on -> cfg.options.shadow = on);
+            y += ROW_STEP;
+            addRenderableWidget(new WoodButton(rightX, y, rightW, 20,
+                    Component.literal("背景：" + backgroundLabel()), () -> {
+                cycleBackground();
+                buildWidgets();
+            }));
+        } else {
+            int half = (rightW - 8) / 2;
+            addToggle(y, "32×32", cfg.sizes.contains(32), on -> toggleSize(32, on), rightX, half);
+            addToggle(y, "128×128", cfg.sizes.contains(128), on -> toggleSize(128, on),
+                    rightX + rightW - half, half);
+            addToggle(y + ROW_STEP, "256×256", cfg.sizes.contains(256), on -> toggleSize(256, on),
+                    rightX, half);
+            addToggle(y + ROW_STEP, "512×512", cfg.sizes.contains(512), on -> toggleSize(512, on),
+                    rightX + rightW - half, half);
+            addToggle(y + ROW_STEP * 2, "使用现场实体", cfg.useLiveEntity, on -> {
+                cfg.useLiveEntity = on;
+                posed = null;
+                dirty = true;
+            });
+        }
+
+        int gap = 6;
+        int bw = Math.max(48, (panelW - PAD * 2 - gap * 2) / 3);
+        addRenderableWidget(new WoodButton(panelX + PAD, actionY, bw, 20,
+                Component.literal("导出 PNG"), this::export));
+        addRenderableWidget(new WoodButton(panelX + PAD + bw + gap, actionY, bw, 20,
+                Component.literal("重置参数"), this::reset));
+        addRenderableWidget(new WoodButton(panelX + PAD + (bw + gap) * 2, actionY, bw, 20,
+                Component.literal("关闭"), this::onClose));
+    }
+
+    private WoodSlider addRowSlider(int y, String label, float min, float max, float value,
+                                    java.util.function.Function<Float, String> format,
+                                    java.util.function.Consumer<Float> apply) {
+        WoodSlider slider = new WoodSlider(rightX, y, rightW, Component.literal(label), min, max, value,
+                format, v -> {
+            apply.accept(v);
+            dirty = true;
+        });
+        addRenderableWidget(slider);
+        return slider;
+    }
+
+    private void addToggle(int y, String label, boolean on, java.util.function.Consumer<Boolean> apply) {
+        addToggle(y, label, on, apply, rightX, rightW);
+    }
+
+    private void addToggle(int y, String label, boolean on, java.util.function.Consumer<Boolean> apply,
+                           int x, int w) {
+        boolean[] state = {on};
+        WoodButton[] holder = new WoodButton[1];
+        WoodButton button = new WoodButton(x, y, w, 20, Component.literal(label), () -> {
+            state[0] = !state[0];
+            holder[0].setChecked(state[0]);
+            apply.accept(state[0]);
+            dirty = true;
+        }).withCheckBox(on);
+        holder[0] = button;
+        addRenderableWidget(button);
+    }
+
+    private void toggleSize(int size, boolean on) {
+        if (on) {
+            if (!cfg.sizes.contains(size)) {
+                cfg.sizes.add(size);
+            }
+        } else {
+            cfg.sizes.remove(Integer.valueOf(size));
+        }
+        buildWidgets();
+    }
+
+    private String backgroundLabel() {
+        if (cfg.options.transparent) {
+            return "透明";
+        }
+        return switch (cfg.options.background) {
+            case 0xFFFFFFFF -> "白色";
+            case 0xFF282018 -> "木色";
+            case 0xFF00FF00 -> "绿幕";
+            default -> "深灰";
+        };
+    }
+
+    private void cycleBackground() {
+        if (cfg.options.transparent) {
+            cfg.options.transparent = false;
+            cfg.options.background = 0xFF202020;
+        } else if (cfg.options.background == 0xFF202020) {
+            cfg.options.background = 0xFFFFFFFF;
+        } else if (cfg.options.background == 0xFFFFFFFF) {
+            cfg.options.background = 0xFF282018;
+        } else if (cfg.options.background == 0xFF282018) {
+            cfg.options.background = 0xFF00FF00;
+        } else {
+            cfg.options.transparent = true;
+        }
+        dirty = true;
+    }
+
+    private void reset() {
+        cfg.options = new EntityRenderOptions();
+        dirty = true;
+        message = "已恢复默认参数";
+        buildWidgets();
+    }
+
+    private void export() {
+        if (exportPending) {
+            return;
+        }
+        // 离屏渲染只能在渲染帧内做：这里只排队，等下一次 render 时再执行
+        exportPending = true;
+        message = "正在导出…";
+    }
+
+    /**
+     * 预览和导出共用同一份“冻结”实体：现场模式拷 NBT 复制一份，默认模式按类型新建。
+     * 这样两次渲染之间不会因为生物动画（史莱姆挤压、手臂摆动）而变形，位置也就对得上了。
+     */
+    private Entity currentEntity() {
+        if (posed != null) {
+            return posed;
+        }
+        Entity built = null;
+        if (cfg.useLiveEntity) {
+            built = SingleEntityExporter.copyOf(live);
+        }
+        if (built == null && minecraft != null && minecraft.level != null) {
+            try {
+                built = type.create(minecraft.level);
+            } catch (Throwable ignored) {
+                built = null;
+            }
+        }
+        posed = built == null ? live : built;
+        return posed;
+    }
+
+    @Override
+    public void renderBackground(PoseStack pose) {
+        // 纯色底，避免世界画面透上来
+    }
+
+    @Override
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        MeowArchiveStyle.fill(pose, 0, 0, width, height, MeowArchiveStyle.SCREEN_BG);
+        MeowArchiveStyle.panel(pose, panelX, panelY, panelW, panelH);
+
+        Font font = this.font;
+        String title = "实体：" + MeowArchiveStyle.clamp(font, entityName.getString(), panelW - 80);
+        MeowArchiveStyle.centered(pose, font, title, panelX + panelW / 2, panelY + 9,
+                MeowArchiveStyle.HEADER_COLOR);
+        MeowArchiveStyle.separator(pose, panelX + 10, panelX + panelW - 10, panelY + 24);
+
+        MeowArchiveStyle.fill(pose, previewX, previewY, previewX + previewBox, previewY + previewBox,
+                MeowArchiveStyle.LIST_BG);
+        MeowArchiveStyle.outline(pose, previewX, previewY, previewBox, previewBox, 0x558B5A2B);
+        if (dirty) {
+            refreshPreview();
+            dirty = false;
+        }
+        if (exportPending) {
+            exportPending = false;
+            SingleEntityConfig.save();
+            message = SingleEntityExporter.export(currentEntity(), cfg.options, cfg.sizes);
+        }
+        if (preview.ready()) {
+            int tex = preview.size();
+            GuiComponent.blit(pose, previewX, previewY, 0.0F, 0.0F, previewBox, previewBox, tex, tex);
+        } else {
+            MeowArchiveStyle.centered(pose, font, "渲染中…", previewX + previewBox / 2,
+                    previewY + previewBox / 2 - 4, MeowArchiveStyle.SUBTEXT_COLOR);
+        }
+
+        String typeId = BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
+        font.draw(pose, MeowArchiveStyle.clamp(font, typeId, previewBox),
+                previewX, previewY + previewBox + 5, MeowArchiveStyle.SUBTEXT_COLOR);
+        String source = cfg.useLiveEntity ? "来源：现场实体" : "来源：默认实体";
+        font.draw(pose, source, previewX, previewY + previewBox + 16, MeowArchiveStyle.SUBTEXT_COLOR);
+        font.draw(pose, "拖动预览可调整偏移", previewX, previewY + previewBox + 27,
+                MeowArchiveStyle.SUBTEXT_COLOR);
+
+        font.draw(pose, MeowArchiveStyle.clamp(font, message, panelW - PAD * 2),
+                panelX + PAD, statusY, MeowArchiveStyle.ACCENT);
+
+        super.render(pose, mouseX, mouseY, partialTick);
+    }
+
+    private void refreshPreview() {
+        Entity entity = currentEntity();
+        if (entity == null) {
+            return;
+        }
+        BufferedImage image = EntityIconRenderer.render(entity, PREVIEW_TEX, cfg.options);
+        if (image != null) {
+            preview.update(image);
+        } else {
+            message = "预览渲染失败（详见日志）";
+            ExporterLog.LOG.warn("单实体预览渲染为空：{}", entity.getType());
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && MeowArchiveStyle.inRect(previewX, previewY, previewBox, previewBox,
+                mouseX, mouseY)) {
+            draggingPreview = true;
+            dragStartX = mouseX;
+            dragStartY = mouseY;
+            dragStartOffsetX = cfg.options.offsetX;
+            dragStartOffsetY = cfg.options.offsetY;
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (draggingPreview) {
+            double box = Math.max(1, previewBox);
+            float dx = (float) ((mouseX - dragStartX) / box);
+            float dy = (float) ((mouseY - dragStartY) / box);
+            cfg.options.offsetX = clamp(dragStartOffsetX + dx, -0.4F, 0.4F);
+            cfg.options.offsetY = clamp(dragStartOffsetY - dy, -0.4F, 0.4F);
+            if (offsetXSlider != null) {
+                offsetXSlider.setValueSilently(cfg.options.offsetX);
+            }
+            if (offsetYSlider != null) {
+                offsetYSlider.setValueSilently(cfg.options.offsetY);
+            }
+            dirty = true;
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        draggingPreview = false;
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    @Override
+    public void onClose() {
+        SingleEntityConfig.save();
+        preview.close();
+        super.onClose();
+    }
+}
