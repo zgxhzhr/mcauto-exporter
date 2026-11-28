@@ -1,5 +1,6 @@
 package io.github.zgxhzhr.meowarchive.exporter.command;
 
+import io.github.zgxhzhr.meowarchive.exporter.SingleEntityPicker;
 import io.github.zgxhzhr.meowarchive.exporter.gui.ExporterScreen;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
@@ -15,6 +16,10 @@ public final class ExportCommand {
                         .executes(context -> {
                             Minecraft.getInstance().gui.setScreen(new ExporterScreen());
                             return 1;
-                        })));
+                        })
+                        .then(ClientCommands.literal("entity").executes(context -> {
+                            SingleEntityPicker.openForCrosshair();
+                            return 1;
+                        }))));
     }
 }
