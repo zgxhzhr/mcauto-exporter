@@ -30,7 +30,8 @@ public final class ForgeClientEvents {
     }
 
     private static void clientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
+        if (event.phase == TickEvent.Phase.START) {
+            SingleEntityPicker.tick();
             return;
         }
         ExportService.get().tick();
@@ -45,6 +46,9 @@ public final class ForgeClientEvents {
         event.getDispatcher().register(Commands.literal("meowarchive").executes(context -> {
             Minecraft.getInstance().setScreen(new ExporterScreen());
             return 1;
-        }));
+        }).then(Commands.literal("entity").executes(context -> {
+            Minecraft.getInstance().execute(SingleEntityPicker::openForCrosshair);
+            return 1;
+        })));
     }
 }
