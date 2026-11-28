@@ -40,6 +40,7 @@ public final class ExporterScreen extends Screen {
     private boolean effects = true;
     private boolean size32 = true;
     private boolean size128 = true;
+    private boolean animated = true;
     private int scroll;
     private String message = "";
     private WoodButton modeButton;
@@ -48,6 +49,7 @@ public final class ExporterScreen extends Screen {
     private WoodButton effectsButton;
     private WoodButton size32Button;
     private WoodButton size128Button;
+    private WoodButton animatedButton;
     private WoodButton startButton;
 
     private int panelX;
@@ -74,6 +76,7 @@ public final class ExporterScreen extends Screen {
     @Override
     protected void init() {
         namespaces.clear();
+        animated = ExporterConfig.get().animatedIcons;
         Set<String> contentNamespaces = contentNamespaces();
         Map<String, String> modIdByLower = new HashMap<>();
         for (String id : Services.PLATFORM.loadedModIds()) {
@@ -158,8 +161,14 @@ public final class ExporterScreen extends Screen {
             size128Button.setChecked(size128);
         }).withCheckBox(size128));
 
-        addButton(new WoodButton(rightX, y + 100, rightW, 20, "导出单个图标…", () ->
+        addButton(new WoodButton(rightX, y + 100, half, 20, "单个图标…", () ->
                 Minecraft.getInstance().setScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
+        animatedButton = addButton(new WoodButton(rightX + rightW - half, y + 100, half, 20, "动图导出", () -> {
+            animated = !animated;
+            ExporterConfig.get().animatedIcons = animated;
+            ExporterConfig.save();
+            animatedButton.setChecked(animated);
+        }).withCheckBox(animated));
 
         int gap = 8;
         int closeW = 72;
