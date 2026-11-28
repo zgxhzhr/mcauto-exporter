@@ -160,7 +160,7 @@ public final class PreviewWriter {
                     t.effectCategory, t.instant ? " · 瞬间" : "");
             case FLUID -> String.format("Fluid · %s · %s%s", t.id,
                     t.fluidColor < 0 ? "颜色未知" : String.format("颜色 #%06X", t.fluidColor & 0xFFFFFF),
-                    t.bucket.isEmpty() ? "" : " · 桶 "
+                    t.bucket.isEmpty() ? "" : " · 容器 "
                             + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(t.bucket.getItem()));
         };
     }

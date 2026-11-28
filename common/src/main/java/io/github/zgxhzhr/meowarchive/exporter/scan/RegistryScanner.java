@@ -174,7 +174,35 @@ public final class RegistryScanner {
                 break;
             }
         }
+        t.nameZh = toFluidName(t.nameZh, true);
+        t.nameEn = toFluidName(t.nameEn, false);
         fillFallbackName(t);
+    }
+
+    /** 把沿用的桶名改写成流体名：去掉结尾的「桶 / Bucket」，换成「流体 / Fluid」。 */
+    private static String toFluidName(String name, boolean zh) {
+        if (name == null || name.isBlank()) {
+            return name;
+        }
+        String trimmed = name.trim();
+        if (zh) {
+            if (trimmed.endsWith("桶")) {
+                String base = trimmed.substring(0, trimmed.length() - 1).trim();
+                if (!base.isEmpty()) {
+                    return base + "流体";
+                }
+            }
+            return trimmed;
+        }
+        int suffix = "bucket".length();
+        if (trimmed.length() > suffix
+                && trimmed.regionMatches(true, trimmed.length() - suffix, "bucket", 0, suffix)) {
+            String base = trimmed.substring(0, trimmed.length() - suffix).trim();
+            if (!base.isEmpty()) {
+                return base + " Fluid";
+            }
+        }
+        return trimmed;
     }
 
     /** 模组漏写翻译时用注册名转写英文名，避免 JSON 里名称双空。 */

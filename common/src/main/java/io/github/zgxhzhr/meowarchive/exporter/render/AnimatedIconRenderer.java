@@ -9,7 +9,6 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 
 import javax.imageio.ImageIO;
@@ -74,7 +73,7 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按图层/quad 顺序收集各层（贴图 + tint 颜色去重），无 quad 时退回粒子图标。 */
+    /** 按图层/quad 顺序收集各层（贴图 + tint 颜色去重），无 quad 或非平面模型时返回空。 */
     private static List<Layer> collectLayers(ItemStackRenderState state, Minecraft mc) throws IOException {
         List<TextureAtlasSprite> sprites = new ArrayList<>();
         List<Integer> tints = new ArrayList<>();
@@ -83,6 +82,11 @@ public final class AnimatedIconRenderer {
             // 1.21.11：prepareTintLayers(0) 只返回已解析的 tint 色表，不会重置
             int[] tintColors = layer.prepareTintLayers(0);
             for (BakedQuad quad : layer.prepareQuadList()) {
+                if (quad.direction() != null) {
+                    // 带方向的 3D 面（桶、方块模型等）无法用平面贴图重建，
+                    // 强行按整张贴图叠会溢出轮廓，交给静态 PNG 渲染
+                    return List.of();
+                }
                 TextureAtlasSprite sprite = quad.sprite();
                 int tintIndex = quad.tintIndex();
                 int tint = tintIndex >= 0 && tintIndex < tintColors.length ? tintColors[tintIndex] : -1;
@@ -94,11 +98,13 @@ public final class AnimatedIconRenderer {
             }
         }
         if (sprites.isEmpty()) {
-            TextureAtlasSprite particle = state.pickParticleIcon(RandomSource.create());
-            if (particle != null) {
-                sprites.add(particle);
-                tints.add(-1);
-            }
+            // 没有烘焙 quad（BEWLR / 内置模型，如各种桶）：只有粒子贴图可以读到，
+            // 而粒子贴图往往是桶内的流体，按整张叠出来就是一整块液体，直接放弃动画
+            return List.of();
+        }
+        if (sprites.size() > 1) {
+            // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
+            return List.of();
         }
         // 先用贴图自带帧数做廉价判断，避免给每个静态物品都解码 PNG/mcmeta
         boolean animated = false;
