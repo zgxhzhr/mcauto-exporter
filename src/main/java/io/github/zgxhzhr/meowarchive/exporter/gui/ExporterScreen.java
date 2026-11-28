@@ -43,6 +43,7 @@ public final class ExporterScreen extends GuiScreen {
     private boolean effects = true;
     private boolean size32 = true;
     private boolean size128 = true;
+    private boolean animated = true;
     private int scroll;
     private String message = "";
     private WoodButton modeButton;
@@ -51,6 +52,7 @@ public final class ExporterScreen extends GuiScreen {
     private WoodButton effectsButton;
     private WoodButton size32Button;
     private WoodButton size128Button;
+    private WoodButton animatedButton;
 
     private int panelX;
     private int panelY;
@@ -76,6 +78,7 @@ public final class ExporterScreen extends GuiScreen {
     public void initGui() {
         this.buttonList.clear();
         namespaces.clear();
+        animated = ExporterConfig.get().animatedIcons;
         Set<String> contentNamespaces = RegistryScanner.contentNamespaces();
         Map<String, String> modIdByLower = new HashMap<>();
         for (String id : ClientPlatform.loadedModIds()) {
@@ -162,8 +165,15 @@ public final class ExporterScreen extends GuiScreen {
         }).withCheckBox(size128);
         buttonList.add(size128Button);
 
-        buttonList.add(new WoodButton(7, rightX, y + 100, rightW, 20, "导出单个图标…",
+        buttonList.add(new WoodButton(7, rightX, y + 100, half, 20, "导出单个图标…",
                 () -> mc.displayGuiScreen(new TargetPickerScreen(this, baseRequest(ExportMode.SINGLE_ICON)))));
+        animatedButton = new WoodButton(11, rightX + rightW - half, y + 100, half, 20, "动图导出", () -> {
+            animated = !animated;
+            ExporterConfig.get().animatedIcons = animated;
+            ExporterConfig.save();
+            animatedButton.setChecked(animated);
+        }).withCheckBox(animated);
+        buttonList.add(animatedButton);
 
         int gap = 8;
         int closeW = 72;

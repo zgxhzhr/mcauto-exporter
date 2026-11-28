@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.color.ItemColors;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.IResource;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
 
 import javax.imageio.ImageIO;
@@ -73,7 +74,7 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按出现顺序收集各层（贴图 + tintIndex 去重），无 quad 时退回粒子图标。 */
+    /** 按出现顺序收集各层（贴图 + tintIndex 去重）；遇到 3D 面、无 quad 或多贴图一律放弃。 */
     private static List<Layer> collectLayers(IBakedModel model, Minecraft mc) {
         List<TextureAtlasSprite> sprites = new ArrayList<>();
         List<Integer> tints = new ArrayList<>();
@@ -83,6 +84,12 @@ public final class AnimatedIconRenderer {
             quads = Collections.emptyList();
         }
         for (BakedQuad quad : quads) {
+            // 1.12.2 的平面物品 quad 朝向只有 SOUTH/NORTH；
+            // 其余朝向说明是 3D 面（桶、方块模型等），按整张贴图叠会溢出轮廓，交给静态 PNG
+            EnumFacing face = quad.getFace();
+            if (face != null && face != EnumFacing.SOUTH && face != EnumFacing.NORTH) {
+                return Collections.emptyList();
+            }
             TextureAtlasSprite sprite = quad.getSprite();
             if (sprite == null) {
                 continue;
@@ -94,12 +101,13 @@ public final class AnimatedIconRenderer {
             }
         }
         if (sprites.isEmpty()) {
-            TextureAtlasSprite particle = model.getParticleTexture();
-            if (particle == null) {
-                return Collections.emptyList();
-            }
-            sprites.add(particle);
-            tints.add(-1);
+            // 没有烘焙 quad（自定义渲染/BEWLR 模型，如各种桶）：只能读到粒子贴图，
+            // 而粒子贴图往往是桶内的流体，按整张叠出来就是一整块液体，直接放弃动画
+            return Collections.emptyList();
+        }
+        if (sprites.size() > 1) {
+            // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
+            return Collections.emptyList();
         }
         // 只用 mcmeta 做廉价预检，避免给每个静态物品都解码整张 PNG
         List<JsonObject> animations = new ArrayList<>();
