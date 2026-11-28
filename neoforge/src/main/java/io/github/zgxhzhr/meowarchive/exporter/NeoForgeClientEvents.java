@@ -21,6 +21,7 @@ public final class NeoForgeClientEvents {
     public static void register(IEventBus bus) {
         bus.addListener(NeoForgeClientEvents::clientSetup);
         bus.addListener(NeoForgeClientEvents::registerGuiLayers);
+        NeoForge.EVENT_BUS.addListener(NeoForgeClientEvents::clientTickPre);
         NeoForge.EVENT_BUS.addListener(NeoForgeClientEvents::clientTick);
         NeoForge.EVENT_BUS.addListener(NeoForgeClientEvents::registerClientCommands);
     }
@@ -37,6 +38,11 @@ public final class NeoForgeClientEvents {
                 (graphics, partialTick) -> ExportService.get().onHudRender(graphics));
     }
 
+    /** 必须早于原版处理选取方块，才能吞掉中键点击。 */
+    private static void clientTickPre(ClientTickEvent.Pre event) {
+        SingleEntityPicker.tick();
+    }
+
     private static void clientTick(ClientTickEvent.Post event) {
         ExportService.get().tick();
         AutoExport.tick();
@@ -46,6 +52,9 @@ public final class NeoForgeClientEvents {
         event.getDispatcher().register(Commands.literal("meowarchive").executes(context -> {
             Minecraft.getInstance().setScreen(new ExporterScreen());
             return 1;
-        }));
+        }).then(Commands.literal("entity").executes(context -> {
+            Minecraft.getInstance().execute(SingleEntityPicker::openForCrosshair);
+            return 1;
+        })));
     }
 }
