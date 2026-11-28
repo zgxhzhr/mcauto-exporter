@@ -81,7 +81,7 @@ public final class AnimatedIconRenderer {
         }
     }
 
-    /** 按出现顺序收集各层（贴图 + tintIndex 去重）；遇到 3D 面、多贴图或无 quad 一律放弃。 */
+    /** 按出现顺序收集各层（贴图 + tintIndex 去重）；遇到 3D 面或无 quad 一律放弃，多层帧尺寸不一致也放弃。 */
     private static List<Layer> collectLayers(ItemStackRenderState state, Minecraft mc) throws IOException {
         List<TextureAtlasSprite> sprites = new ArrayList<>();
         List<Integer> tints = new ArrayList<>();
@@ -107,10 +107,6 @@ public final class AnimatedIconRenderer {
             // 而粒子贴图往往是桶内的流体，按整张叠出来就是一整块液体，直接放弃动画
             return List.of();
         }
-        if (sprites.size() > 1) {
-            // 多贴图层（桶身 + 桶内流体等）按整张贴图堆叠同样会画错位置，放弃动画
-            return List.of();
-        }
         // 先用贴图自带帧数做廉价判断，避免给每个静态物品都解码 PNG/mcmeta
         boolean animated = false;
         for (TextureAtlasSprite sprite : sprites) {
@@ -126,10 +122,21 @@ public final class AnimatedIconRenderer {
             return List.of();
         }
         List<Layer> layers = new ArrayList<>();
+        int width = -1;
+        int height = -1;
         for (int i = 0; i < sprites.size(); i++) {
             Layer layer = loadLayer(sprites.get(i), tints.get(i), mc);
             if (layer == null) {
                 // 任一层缺失就整体放弃，避免输出半成品
+                return List.of();
+            }
+            int w = layer.frameWidth();
+            int h = layer.frameHeight();
+            if (width < 0) {
+                width = w;
+                height = h;
+            } else if (w != width || h != height) {
+                // 帧尺寸不一致的多层（桶身 + 桶内流体等）叠起来会错位，放弃动画
                 return List.of();
             }
             layers.add(layer);
@@ -491,6 +498,14 @@ public final class AnimatedIconRenderer {
                 sum += time;
             }
             this.period = sum;
+        }
+
+        int frameWidth() {
+            return frames.get(0).getWidth();
+        }
+
+        int frameHeight() {
+            return frames.get(0).getHeight();
         }
 
         BufferedImage frameAt(int tick) {
