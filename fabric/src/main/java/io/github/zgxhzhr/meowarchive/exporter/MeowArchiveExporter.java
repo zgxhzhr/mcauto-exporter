@@ -22,6 +22,7 @@ public final class MeowArchiveExporter implements ModInitializer, ClientModIniti
         ExporterLog.LOG.info("Meow Archive Exporter client init: gameDir={}",
                 io.github.zgxhzhr.meowarchive.exporter.platform.Services.PLATFORM.gameDir());
         ExporterConfig.load();
+        ClientTickEvents.START_CLIENT_TICK.register(client -> SingleEntityPicker.tick());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ExportService.get().tick();
             AutoExport.tick();
