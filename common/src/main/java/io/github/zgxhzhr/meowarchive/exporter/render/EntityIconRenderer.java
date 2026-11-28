@@ -12,7 +12,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -166,7 +165,8 @@ public final class EntityIconRenderer {
         BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
         try {
-            g.setComposite(AlphaComposite.Src);
+            // 这里必须用默认的 SrcOver：Src 会把 fitted 的透明像素也写进画布，
+            // 缩放后只覆盖中间一块，背景色就被“挖”成一个透明/黑色的方框。
             if (!options.transparent) {
                 g.setColor(new Color(options.background, true));
                 g.fillRect(0, 0, size, size);
