@@ -26,6 +26,8 @@ public final class Target {
     public final EntityType<?> entityType;
     public final MobEffect effect;
     public final Map<Integer, BufferedImage> icons = new LinkedHashMap<>();
+    /** 物品：平面动画模型导出的 GIF 字节，按图标尺寸存放。 */
+    public final Map<Integer, byte[]> animatedGifs = new LinkedHashMap<>();
     public String nameZh = "";
     public String nameEn = "";
     public String creativeTab = "未知";
