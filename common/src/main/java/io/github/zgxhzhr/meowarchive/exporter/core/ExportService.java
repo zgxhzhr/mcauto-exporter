@@ -47,6 +47,8 @@ public final class ExportService {
     private String currentLabel = "";
     private String lastResult = "";
     private final Deque<String> log = new ArrayDeque<>();
+    /** 逐条记录动图判定结果，导出结束写入 animated-report.txt 便于排查。 */
+    private final List<String> animReport = new ArrayList<>();
     private Path output;
     private long startedAt;
 
@@ -92,6 +94,7 @@ public final class ExportService {
         startedAt = System.currentTimeMillis();
         output = ExporterConfig.get().outputPath();
         log.clear();
+        animReport.clear();
         try {
             Files.createDirectories(output);
         } catch (IOException e) {
@@ -213,15 +216,13 @@ public final class ExportService {
     /** 平面动画物品：合成 GIF 落盘并缓存字节，供 JSON / 预览页直接内嵌。 */
     private void exportAnimated(Target target, int size) {
         if (!ExporterConfig.get().animatedIcons) {
+            animReport.add(target.id + " @" + size + " -> 动图开关关闭");
             return;
         }
+        StringBuilder reason = new StringBuilder();
         try {
-            Minecraft mc = Minecraft.getInstance();
-            var model = mc.getItemRenderer().getModel(target.stack, mc.level, mc.player, 0);
-            if (model.isGui3d()) {
-                return;
-            }
-            AnimatedIconRenderer.AnimatedIcon icon = AnimatedIconRenderer.render(target.stack, size);
+            AnimatedIconRenderer.AnimatedIcon icon = AnimatedIconRenderer.render(target.stack, size, reason);
+            animReport.add(target.id + " @" + size + " -> " + reason);
             if (icon == null) {
                 return;
             }
@@ -231,6 +232,7 @@ public final class ExportService {
                 log.add("动图 " + target.id + " @" + size + "：" + icon.frames.size() + " 帧");
             }
         } catch (Throwable t) {
+            animReport.add(target.id + " @" + size + " -> 异常：" + t);
             ExporterLog.LOG.warn("GIF 导出失败: {}", target.id, t);
         }
     }
@@ -255,6 +257,7 @@ public final class ExportService {
                 PreviewWriter.write(output, targets);
             }
             writeFailureReport();
+            writeAnimatedReport();
             writeStatus("DONE", message);
             int success = Math.max(0, targets.size() - failures.size() - noVisualTargets.size());
             lastResult = message + " · 成功 " + success + "，失败 " + failures.size()
@@ -313,6 +316,15 @@ public final class ExportService {
         appendSection(sb, "无可见模型", noVisualTargets);
         appendSection(sb, "可疑", suspectTargets);
         Files.writeString(output.resolve("failures.txt"), sb.toString(), StandardCharsets.UTF_8);
+    }
+
+    /** 动图判定明细：每条一行，写明成功帧数或放弃原因，便于用户侧排查。 */
+    private void writeAnimatedReport() throws IOException {
+        if (animReport.isEmpty()) {
+            return;
+        }
+        Files.writeString(output.resolve("animated-report.txt"), String.join("\n", animReport) + "\n",
+                StandardCharsets.UTF_8);
     }
 
     private static void appendSection(StringBuilder sb, String title, Map<String, String> entries) {
