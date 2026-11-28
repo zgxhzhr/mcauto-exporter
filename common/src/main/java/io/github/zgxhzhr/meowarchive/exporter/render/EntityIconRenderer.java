@@ -13,7 +13,6 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import org.joml.Matrix4f;
 
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -116,7 +115,6 @@ public final class EntityIconRenderer {
         BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = out.createGraphics();
         try {
-            g.setComposite(AlphaComposite.Src);
             if (!options.transparent) {
                 g.setColor(new Color(options.background, true));
                 g.fillRect(0, 0, size, size);
