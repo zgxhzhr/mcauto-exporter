@@ -6,8 +6,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.github.zgxhzhr.meowarchive.exporter.ExporterLog;
 import io.github.zgxhzhr.meowarchive.exporter.config.ExporterConfig;
+import io.github.zgxhzhr.meowarchive.exporter.render.AnimatedIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.EffectIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.EntityIconRenderer;
+import io.github.zgxhzhr.meowarchive.exporter.render.FluidCubeAnimator;
 import io.github.zgxhzhr.meowarchive.exporter.render.FluidIconRenderer;
 import io.github.zgxhzhr.meowarchive.exporter.render.ImageUtil;
 import io.github.zgxhzhr.meowarchive.exporter.render.ItemIconRenderer;
@@ -169,6 +171,10 @@ public final class ExportService {
             } else {
                 skippedSizes.add(target.id + "#" + size);
             }
+            if (target.kind == Target.Kind.ITEM) {
+                // 平面动画物品额外导出 GIF，静态 PNG 仍保留作兜底
+                exportAnimated(target, size);
+            }
         };
         switch (target.kind) {
             case ITEM -> ItemIconRenderer.renderAsync(target.stack, size, done);
@@ -186,6 +192,8 @@ public final class ExportService {
                 BufferedImage image = FluidIconRenderer.renderCube(target, size);
                 if (image != null) {
                     target.fluidIconSource = "cube";
+                    // 动画流体的立体图标同样额外导出 GIF
+                    exportFluidAnimated(target, size);
                 } else {
                     image = flat;
                     target.fluidIconSource = flat == null ? "" : target.fluidStillIconSource;
@@ -277,6 +285,53 @@ public final class ExportService {
         } catch (IOException e) {
             failures.putIfAbsent(target.id.toString(), "写图失败：" + e.getMessage());
             log.add("写图失败：" + target.id + "：" + e.getMessage());
+            return false;
+        }
+    }
+
+    /** 平面动画物品：合成 GIF 落盘并缓存字节，供 JSON / 预览页直接内嵌。 */
+    private void exportAnimated(Target target, int size) {
+        try {
+            AnimatedIconRenderer.AnimatedIcon icon = AnimatedIconRenderer.render(target.stack, size);
+            if (icon == null) {
+                return;
+            }
+            byte[] gif = ImageUtil.gif(icon.frames, icon.delaysMillis);
+            if (writeGif(target, size, gif)) {
+                target.animatedGifs.put(size, gif);
+                log.add("动图 " + target.id + " @" + size + "：" + icon.frames.size() + " 帧");
+            }
+        } catch (Throwable t) {
+            ExporterLog.LOG.warn("GIF 导出失败: {}", target.id, t);
+        }
+    }
+
+    /** 动画流体：逐帧合成 still + flowing 的立体图标并写 GIF。 */
+    private void exportFluidAnimated(Target target, int size) {
+        try {
+            AnimatedIconRenderer.AnimatedIcon icon = FluidCubeAnimator.render(target, size);
+            if (icon == null) {
+                return;
+            }
+            byte[] gif = ImageUtil.gif(icon.frames, icon.delaysMillis);
+            if (writeGif(target, size, gif)) {
+                target.animatedGifs.put(size, gif);
+                log.add("动图 " + target.id + " @" + size + "：" + icon.frames.size() + " 帧");
+            }
+        } catch (Throwable t) {
+            ExporterLog.LOG.warn("流体 GIF 导出失败: {}", target.id, t);
+        }
+    }
+
+    private boolean writeGif(Target target, int size, byte[] gif) {
+        try {
+            Path dir = output.resolve(target.namespace()).resolve("icons");
+            Files.createDirectories(dir);
+            Files.write(dir.resolve(target.path() + "_" + size + ".gif"), gif);
+            return true;
+        } catch (IOException e) {
+            failures.putIfAbsent(target.id.toString(), "写 GIF 失败：" + e.getMessage());
+            log.add("写 GIF 失败：" + target.id + "：" + e.getMessage());
             return false;
         }
     }
